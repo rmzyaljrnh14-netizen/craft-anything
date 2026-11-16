@@ -1,0 +1,13 @@
+# Production rendering and vector timing
+Pillow>=10.0
+numpy>=1.26
+imageio-ffmpeg>=0.5
+svgwrite>=1.4
+svgpathtools>=1.6
+arabic-reshaper>=3.0
+python-bidi>=0.6
+
+# Audio analysis and quality control
+soundfile>=0.12
+pyloudnorm>=0.1.1
+av>=12.0

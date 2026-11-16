@@ -1,8 +1,7 @@
-"""Arabic text shaping + rendering helpers for the whiteboard renderer.
+"""Arabic text preparation and rendering helpers.
 
-Pillow does not perform Arabic contextual shaping, so we use HarfBuzz
-(uharfbuzz) to produce correctly joined forms, and python-bidi to apply the
-Unicode bidirectional algorithm for right-to-left layout.
+Arabic is reshaped with arabic-reshaper and reordered with python-bidi before
+Pillow draws it. This module does not claim to render glyphs with HarfBuzz.
 """
 
 from __future__ import annotations
@@ -10,7 +9,6 @@ from __future__ import annotations
 import functools
 from pathlib import Path
 
-import uharfbuzz as hb
 from bidi.algorithm import get_display
 from PIL import ImageFont
 
@@ -21,19 +19,6 @@ LATIN_FONT = FONT_DIR / "DMSans-Bold.ttf"
 LATIN_REGULAR = FONT_DIR / "DMSans-Regular.ttf"
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
-_HB_CACHE: dict[str, hb.Face] = {}
-
-
-def _load_hb(path: Path) -> hb.Face:
-    key = str(path)
-    if key not in _HB_CACHE:
-        with open(path, "rb") as fh:
-            blob = hb.Blob(fh.read())
-        face = hb.Face(blob)
-        font = hb.Font(face)
-        font.scale = (1000, 1000)
-        _HB_CACHE[key] = font
-    return _HB_CACHE[key]
 
 
 def get_font(path: Path | str, size: int) -> ImageFont.FreeTypeFont:
@@ -54,14 +39,7 @@ def is_rtl(text: str) -> bool:
 
 
 def shape(text: str, font_path: Path | str = ARABIC_FONT) -> str:
-    """Shape Arabic text into presentation forms using HarfBuzz.
-
-    HarfBuzz gives us the correct contextual joining plus ligatures. The
-    resulting glyph ids are mapped back to unicode via the font's cmap using
-    an inverse lookup of the shaped cluster.  We keep it simple and robust by
-    asking HarfBuzz to shape and then reverse-mapping with a fallback to
-    arabic_reshaper for glyphs HarfBuzz cannot map.
-    """
+    """Join Arabic letters into presentation forms using arabic-reshaper."""
     import arabic_reshaper
 
     try:

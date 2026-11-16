@@ -1,0 +1,42 @@
+{
+  "asset": "whiteboard_studio_demo.mp4",
+  "validated_at_utc": "2026-11-16",
+  "technical": {
+    "duration_seconds": 15.0,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "decoded_video_frames": 450,
+    "video_codec": "H.264 High, yuv420p",
+    "audio_codec": "AAC-LC, 48 kHz stereo",
+    "arabic_caption_cues": 4
+  },
+  "quality_checks": {
+    "all_frames_decoded": true,
+    "black_frames": 0,
+    "near_empty_frames": 0,
+    "animated_frame_differences_detected": true,
+    "audio_present": true,
+    "long_silence_detected": false,
+    "subtitle_text_and_timing_valid": true,
+    "ffmpeg_blackdetect_intervals": 0,
+    "ffmpeg_freezedetect_intervals": 0,
+    "automated_ffmpeg_black_and_freeze_scan": true
+  },
+  "audio_analysis": {
+    "integrated_loudness_lufs": -17.6,
+    "true_peak_dbfs": -6.0,
+    "voiceover_seconds": 13.16,
+    "music_tail_seconds": 1.84
+  },
+  "editing_smoke_test": {
+    "ffmpeg_xfade_wipe_transition": "passed",
+    "test_duration_seconds": 1.7,
+    "decoded_frames": 51
+  },
+  "visual_review": {
+    "background": "white",
+    "visual_source": "authored SVG paths revealed progressively by arc length; no raster illustration or image-trace reveal",
+    "pen_hand": "procedural animated 2D hand following the active path; not live-action footage"
+  }
+}

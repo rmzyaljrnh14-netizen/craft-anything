@@ -1,0 +1,40 @@
+{
+  "project": "Whiteboard Studio — pen-path demo",
+  "topic": "Small repeated actions build upward momentum",
+  "language": "ar",
+  "canvas": {"width": 1280, "height": 720},
+  "export": {"width": 1920, "height": 1080, "fps": 30, "duration_seconds": 15},
+  "character_id": "habit-guide-v1",
+  "voiceover": "build/vo/character_preview.wav",
+  "captions": [
+    {"start": 0.0, "end": 3.6, "text": "نرسم شخصًا يقف أمام هدفه."},
+    {"start": 3.6, "end": 6.7, "text": "يبدأ بخطوة صغيرة، ثم يتبع السهم."},
+    {"start": 6.7, "end": 10.8, "text": "ومع كل يوم، يرتفع المخطط قليلًا."},
+    {"start": 10.8, "end": 13.4, "text": "كل تكرار يصنع فرقًا."}
+  ],
+  "strokes": [
+    {"id":"head-outline","kind":"character","description":"draw smiling face outline","d":"M 315 162 C 291 162 272 181 272 205 C 272 229 291 248 315 248 C 339 248 358 229 358 205 C 358 181 339 162 315 162 Z","start":0.20,"end":1.34,"color":"#202a30","width":4.5},
+    {"id":"hair","kind":"character","description":"short swept hair","d":"M 278 184 C 277 171 288 160 299 158 C 308 155 315 161 320 165 C 330 158 342 165 347 175 C 351 179 352 183 352 188","start":1.34,"end":1.66,"color":"#202a30","width":3.5},
+    {"id":"left-eye","kind":"character","description":"left eye","d":"M 297 204 C 297 200 303 200 303 204 C 303 208 297 208 297 204 Z","start":1.66,"end":1.90,"color":"#202a30","width":2.8},
+    {"id":"right-eye","kind":"character","description":"right eye","d":"M 327 204 C 327 200 333 200 333 204 C 333 208 327 208 327 204 Z","start":1.90,"end":2.14,"color":"#202a30","width":2.8},
+    {"id":"smile","kind":"character","description":"smiling expression","d":"M 298 222 C 306 237 324 237 333 222","start":2.14,"end":2.39,"color":"#e76f51","width":3.5},
+    {"id":"neck","kind":"character","description":"neck","d":"M 306 247 L 306 264 M 324 247 L 324 264","start":2.39,"end":2.68,"color":"#202a30","width":3.5},
+    {"id":"torso","kind":"character","description":"torso and shoulders","d":"M 306 264 C 291 267 279 278 275 293 L 270 344 C 270 359 278 374 290 380 L 340 380 C 353 372 360 359 360 344 L 355 293 C 351 278 339 267 324 264 Z","start":2.68,"end":3.47,"color":"#202a30","width":4.5},
+    {"id":"shirt-accent","kind":"character","description":"teal shirt accent","d":"M 282 286 L 306 305 L 324 305 L 348 286","start":3.47,"end":3.78,"color":"#0d918f","width":3.8},
+    {"id":"left-arm","kind":"character","description":"relaxed bent arm","d":"M 278 286 C 267 297 258 312 252 329 L 248 342 C 248 351 257 356 266 352 L 276 345","start":3.78,"end":4.37,"color":"#202a30","width":4.5},
+    {"id":"pointing-arm","kind":"character","description":"arm points towards the chart","d":"M 350 286 C 366 291 379 299 391 291 L 416 271 L 442 256","start":4.37,"end":5.03,"color":"#202a30","width":4.5},
+    {"id":"pointing-fingers","kind":"character","description":"two simple finger lines","d":"M 438 254 L 454 247 M 439 259 L 454 261","start":5.03,"end":5.34,"color":"#202a30","width":2.8},
+    {"id":"left-leg","kind":"character","description":"left leg and foot","d":"M 291 378 C 288 402 287 421 277 444 L 260 467 L 245 470 Q 239 474 242 479 L 283 479","start":5.34,"end":5.83,"color":"#202a30","width":4.5},
+    {"id":"right-leg","kind":"character","description":"right leg and foot","d":"M 337 378 C 340 402 344 423 353 444 L 370 465 L 386 468 Q 393 472 390 478 L 351 478","start":5.83,"end":6.30,"color":"#202a30","width":4.5},
+    {"id":"direction-arrow","kind":"diagram","description":"arrow from the character toward the chart","d":"M 456 254 C 515 245 574 239 639 231 M 639 231 L 620 218 M 639 231 L 620 244","start":6.35,"end":7.45,"color":"#efb740","width":5.5},
+    {"id":"y-axis","kind":"chart","description":"vertical chart axis","d":"M 705 468 L 705 277","start":7.50,"end":8.05,"color":"#202a30","width":3.6},
+    {"id":"x-axis","kind":"chart","description":"horizontal chart axis","d":"M 705 468 L 1164 468","start":8.05,"end":8.65,"color":"#202a30","width":3.6},
+    {"id":"grid-1","kind":"chart","description":"subtle chart guide","d":"M 705 418 L 1164 418","start":8.65,"end":9.05,"color":"#d5dddc","width":1.8},
+    {"id":"grid-2","kind":"chart","description":"subtle chart guide","d":"M 705 352 L 1164 352","start":9.05,"end":9.40,"color":"#d5dddc","width":1.8},
+    {"id":"growth-curve","kind":"chart","description":"rising compounding curve, hand-traced","d":"M 730 430 C 806 438 840 423 876 398 C 932 359 979 336 1020 309 C 1062 281 1090 266 1130 260","start":9.40,"end":12.45,"color":"#0d918f","width":7.0},
+    {"id":"curve-arrow","kind":"chart","description":"arrow head on the growth curve","d":"M 1130 260 L 1107 262 M 1130 260 L 1118 282","start":12.45,"end":12.65,"color":"#0d918f","width":4.2},
+    {"id":"milestone-1","kind":"chart","description":"first small progress marker","d":"M 799 429 C 799 425 805 425 805 429 C 805 433 799 433 799 429 Z","start":12.65,"end":12.75,"color":"#e76f51","width":2.5},
+    {"id":"milestone-2","kind":"chart","description":"second small progress marker","d":"M 899 385 C 899 381 905 381 905 385 C 905 389 899 389 899 385 Z","start":12.75,"end":12.85,"color":"#e76f51","width":2.5},
+    {"id":"milestone-3","kind":"chart","description":"third small progress marker","d":"M 1003 321 C 1003 317 1009 317 1009 321 C 1009 325 1003 325 1003 321 Z","start":12.85,"end":12.95,"color":"#e76f51","width":2.5}
+  ]
+}

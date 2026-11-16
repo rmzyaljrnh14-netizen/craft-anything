@@ -1,26 +1,23 @@
-# Arabic whiteboard video tools
+# Arabic Whiteboard Animation Studio
 
-This directory contains the procedural Arabic whiteboard video renderer and muxer used for the compound-habits production.
+`studio.py` is the current production path. It accepts a timed JSON storyboard with vector paths, reveals those strokes frame-by-frame, moves a marker hand along the active path, burns Arabic captions, mixes narration with original synthesized audio, exports MP4, and runs automated quality checks.
 
 ## Runtime inputs
 
-The scripts expect the production workspace at the repository root:
+- Python venv `.venv-prod/`; install `tools/wa/requirements-studio.txt`
+- Licensed local Arabic font at `assets/fonts/NotoNaskhArabic.ttf`
+- Narration supplied as WAV (for the demo, `build/vo/character_preview.wav`)
 
-- `.venv-prod/` with Pillow, NumPy, `imageio-ffmpeg`, `arabic-reshaper`, and `python-bidi`
-- `assets/fonts/NotoNaskhArabic.ttf` and `assets/fonts/DMSans-Regular.ttf`
-- The eight narration WAVs at `build/vo/scene01.wav` through `scene08.wav`
-- The Arabic script at `build/script/05_Script.txt`
+Fonts, voice clips, and generated production media are ignored by Git. The Arena speech tool is the current Arabic narration source; its service is not a Python package.
 
-Fonts, rendered assets, and deliverables are deliberately ignored by Git. Provide the appropriately licensed fonts and locally generated narration before running the pipeline.
-
-## Run
-
-From the repository root:
+## Commands (from repository root)
 
 ```sh
-.venv-prod/bin/python tools/wa/thumbnail.py
-.venv-prod/bin/python tools/wa/render.py build/render/boards.mp4
-.venv-prod/bin/python tools/wa/assemble.py
+.venv-prod/bin/python tools/wa/studio.py audit
+.venv-prod/bin/python tools/wa/studio.py render-demo
+.venv-prod/bin/python tools/wa/studio.py qc preview/whiteboard_studio_demo.mp4
 ```
 
-`render.py` writes a 10-fps intermediate with progressive whiteboard reveals and an illustrated marker hand. `assemble.py` builds the concatenated voice track, original synthesized music and marker texture, SRT/ASS captions, and the final 1920×1080, 30-fps H.264/AAC MP4. Outputs go under the ignored `build/` and `output/` directories.
+The demo storyboard is `tools/wa/projects/whiteboard_studio_demo.json`. Its illustrations are SVG path data authored as strokes, not a raster image or image trace. The current export is 15 seconds, 1920×1080, 30 fps, H.264/AAC. `PyAV` performs stream and frame checks because a standalone `ffprobe` binary is not installed; FFmpeg performs encoding and black-frame scanning.
+
+`render.py`/`assemble.py` remain as the earlier v1 renderer and are retained for reproducibility of the first prototype. For new work use `studio.py`.
