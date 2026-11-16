@@ -16,3 +16,10 @@ corpus/
 *.pfx
 *.key
 .claude/settings.local.json
+
+# Video production build artifacts
+.venv-prod/
+build/
+output/
+assets/fonts/*.ttf
+__pycache__/
