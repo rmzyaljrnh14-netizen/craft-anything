@@ -14,7 +14,7 @@ import wave
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 from svgpathtools import parse_path
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -43,6 +43,9 @@ stroke('M 382 334 C 388 341 387 348 382 351',INK)
 stroke('M 397 361 C 402 367 401 373 396 377',INK)
 # Restless thought scribble: one organic looping stroke, not a pasted raster.
 stroke('M 232 247 C 245 214 283 207 309 226 C 330 243 324 270 297 280 C 275 289 249 278 252 257 C 255 239 286 231 305 244 C 323 257 311 278 291 278 C 273 278 264 264 274 252 C 286 238 306 242 312 255 C 319 273 298 287 278 284 C 252 281 238 262 249 242 C 263 218 298 219 321 238 C 341 255 334 282 311 291 C 281 303 245 291 239 269 C 235 259 235 252 232 247 Z',INK)
+stroke('M 245 253 C 261 271 282 243 301 259 C 316 272 302 292 283 288 C 266 285 260 269 271 257 C 286 240 312 253 322 270',INK)
+stroke('M 250 276 C 268 261 277 234 300 231 C 324 229 337 252 324 268 C 313 281 293 273 297 258 C 301 245 321 243 334 253',INK)
+stroke('M 239 244 C 255 230 273 238 279 252 C 284 267 301 267 312 253 C 323 239 340 246 343 260',INK)
 stroke('M 219 223 L 211 215 M 213 273 L 202 276 M 390 211 L 400 205 M 414 269 L 425 273',GRAY)
 # Worried young person: hair silhouette and loose curls.
 stroke('M 184 448 C 165 430 166 398 181 379 C 177 352 190 328 215 320 C 232 300 264 303 280 318 C 308 312 331 331 329 355 C 346 372 338 397 322 410 C 318 432 305 449 289 456 L 202 464 Z',INK)
@@ -58,9 +61,9 @@ stroke('M 237 442 C 249 432 266 431 279 438',INK)
 stroke('M 239 450 C 250 447 261 447 271 450',TEAL)
 # Neck, shoulders, sweater and bent arm supporting the cheek.
 stroke('M 226 462 C 229 477 225 487 215 495 M 270 463 C 270 478 277 487 288 493',INK)
-stroke('M 214 495 C 191 499 175 510 164 529 C 148 557 147 592 150 625',INK)
-stroke('M 288 493 C 315 502 329 520 335 548 L 348 598 L 367 625',INK)
-stroke('M 150 625 C 196 615 235 614 274 620 C 303 625 329 628 367 625',INK)
+stroke('M 214 495 C 191 499 175 510 164 529 C 148 557 147 606 150 681',INK)
+stroke('M 288 493 C 315 502 329 520 335 548 L 348 630 L 367 688',INK)
+stroke('M 150 681 C 196 669 235 668 274 677 C 303 684 329 691 367 688',INK)
 stroke('M 207 500 C 205 521 210 542 224 557 C 236 571 249 580 262 591',BLUE)
 # Raised arm and hand touching cheek: wrist enters from lower-left, fingertips meet face.
 stroke('M 163 534 C 179 521 190 511 197 495 C 202 480 200 463 207 450',INK)
@@ -106,50 +109,57 @@ def prep_hand():
     anchor=(10*width/(box[2]-box[0]),86*width/(box[2]-box[0]))
     return hand,anchor
 
-def board(title_font,small_font):
-    im=Image.new('RGB',(W,H),(250,250,248));d=ImageDraw.Draw(im)
-    d.rounded_rectangle((47,38,W-47,H-38),radius=30,fill=(232,235,233))
-    d.rounded_rectangle((54,45,W-54,H-45),radius=27,fill='white',outline=(229,233,231),width=2)
-    # Small chapter marker at top right.
-    d.rounded_rectangle((W-490,88,W-126,142),radius=27,fill=(238,246,249))
-    draw_rtl(d,(W-308,115),'قبل النوم | أفكار لا تهدأ',small_font,BLUE)
-    return im
+def board():
+    # Match the plain white paper of the supplied first panel; no decorative frame.
+    return Image.new('RGB',(W,H),(255,255,255))
 
 def render():
     sys.path.insert(0,str(ROOT/'tools/wa'))
     from arabic import ARABIC_FONT
-    title_font=ImageFont.truetype(str(ARABIC_FONT),104)
-    small_font=ImageFont.truetype(str(ARABIC_FONT),31)
-    caption_font=ImageFont.truetype(str(ARABIC_FONT),35)
-    # Check reference crop is intact and marked as the user's source storyboard.
+    title_font=ImageFont.truetype(str(ARABIC_FONT),220)
+    try:title_font.set_variation_by_axes([700])
+    except Exception:pass
+    # Use the exact first storyboard panel as a brief reference shot, never as drawn pixels.
     ref=Image.open(REF).convert('RGB')
     hand,anchor=prep_hand()
     paths=[]
-    for raw,color in STROKES:
-        p=parse_path(raw).scaled(S);pts,length=sample_path(p);paths.append((pts,color,length))
-    start,draw_end=1.2,9.85;gap=.035
+    for i,(raw,color) in enumerate(STROKES):
+        p=parse_path(raw)
+        if i<=6:
+            p=p.translated(complex(0,-110))
+        elif i<=18:
+            p=p.scaled(1.8,1.45,origin=complex(300,260)).translated(complex(0,-45))
+        elif i<=35:
+            p=p.scaled(1.8,1.25,origin=complex(260,350))
+        else:
+            p=p.scaled(1.8,1.0,origin=complex(260,500))
+        p=p.scaled(S);pts,length=sample_path(p);paths.append((pts,color,length))
+    art_start,draw_end=3.95,9.85;gap=.035
     durations=[max(.08,l/1450) for _,_,l in paths]
-    factor=(draw_end-start-gap*(len(paths)-1))/sum(durations)
-    durations=[x*factor for x in durations];starts=[];cursor=start
+    factor=(draw_end-art_start-gap*(len(paths)-1))/sum(durations)
+    durations=[x*factor for x in durations];starts=[];cursor=art_start
     for dur in durations:starts.append(cursor);cursor+=dur+gap
 
-    base=board(title_font,small_font)
-    # Captions are composed as shaped Arabic text, not rasterized from the supplied frame.
-    captions=[(.55,3.7,'لماذا نفكر كثيرًا قبل النوم؟'),(3.7,6.9,'حين يهدأ كل شيء، يبدأ العقل بمراجعة اليوم.'),(6.9,10.25,'ويظل يقفز بين الأمس والغد.')]
-    # Reference intro card with light border; it is not used in the drawing pipeline.
-    intro=Image.new('RGB',(W,H),(246,247,245));idraw=ImageDraw.Draw(intro)
-    idraw.rounded_rectangle((70,55,W-70,H-55),radius=28,fill='white',outline=(222,226,224),width=3)
-    scale=min((W-160)/ref.width,(H-170)/ref.height)
-    ri=ref.resize((round(ref.width*scale),round(ref.height*scale)),Image.Resampling.LANCZOS)
-    intro.paste(ri,((W-ri.width)//2,(H-ri.height)//2))
-    idraw.rounded_rectangle((W-465,75,W-100,132),radius=25,fill=(238,246,249))
-    draw_rtl(idraw,(W-282,103),'مرجعك: المشهد الأول',small_font,BLUE)
-    intro_rgb=np.asarray(intro);base_rgb=np.asarray(base)
-    # Use a real generated pen-in-hand cutout, chroma-keyed to transparency, anchored at the nib.
+    base=board();base_rgb=np.asarray(base)
+    # Large, bold Arabic title sized and positioned like the uploaded first panel.
+    title_specs=[('لماذا',INK,(1370,255),1.15,1.82),
+                 ('نفكر كثيرًا',BLUE,(1320,485),1.84,2.78),
+                 ('قبل النوم؟',INK,(1280,720),2.80,3.78)]
+    title_layers=[]
+    for text,color,xy,st,en in title_specs:
+        layer=Image.new('RGBA',(W,H),(0,0,0,0));draw_rtl(ImageDraw.Draw(layer),xy,text,title_font,(*color,255))
+        title_layers.append((layer,layer.getchannel('A').getbbox(),st,en))
+    captions=[(.55,3.78,'لماذا نفكر كثيرًا قبل النوم؟'),(3.78,7.0,'حين يهدأ كل شيء، يبدأ العقل بمراجعة اليوم.'),(7.0,10.25,'ويظل يقفز بين الأمس والغد.')]
+    # Preserve the supplied panel's proportions when it appears as the opening reference.
+    intro=Image.new('RGB',(W,H),(255,255,255))
+    ref_h=H;ref_w=round(ref.width*ref_h/ref.height)
+    ri=ref.resize((ref_w,ref_h),Image.Resampling.LANCZOS)
+    intro.paste(ri,((W-ref_w)//2,0))
+    intro_rgb=np.asarray(intro)
     hand_anchor=anchor
     ffmpeg=subprocess.check_output([sys.executable,'-c','import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'],text=True).strip()
     OUT.parent.mkdir(parents=True,exist_ok=True)
-    # Store Arabic subtitle timings alongside the rendered, burned-in captions.
+    # Store Arabic subtitle timings as a sidecar SRT file.
     srt=[]
     for i,(a,b,text) in enumerate(captions,1):
         def ts(t):
@@ -173,53 +183,65 @@ def render():
     frames=round(DURATION*FPS)
     for fi in range(frames):
         t=fi/FPS
-        if t<.75:
+        if t<.72:
             frame=Image.fromarray(intro_rgb)
-        elif t<1.2:
-            frame=Image.blend(Image.fromarray(intro_rgb),Image.fromarray(base_rgb),(t-.75)/.45)
+        elif t<1.08:
+            frame=Image.blend(Image.fromarray(intro_rgb),Image.fromarray(base_rgb),(t-.72)/.36)
         else:
-            frame=base.copy();draw=ImageDraw.Draw(frame);pos=None
-            # Write the title in three visual beats while the illustration draws.
-            title_a=max(0,min(1,(t-1.2)/.45))
-            title_b=max(0,min(1,(t-1.85)/.50))
-            title_c=max(0,min(1,(t-2.45)/.50))
-            layer=Image.new('RGBA',(W,H),(0,0,0,0));ld=ImageDraw.Draw(layer)
-            # Full separate title lines, faded in by word rather than revealing a source bitmap.
-            if title_a>0:
-                l=Image.new('RGBA',(W,H),(0,0,0,0));ImageDraw.Draw(l).text((0,0),'',fill=(0,0,0,0))
-                # Recompose the matching line with its own alpha so beats are independently timed.
-                draw_rtl(ImageDraw.Draw(l),(1260,345),'لماذا',title_font,(*INK,round(255*title_a)))
-                layer=Image.alpha_composite(layer,l)
-            if title_b>0:
-                l=Image.new('RGBA',(W,H),(0,0,0,0));draw_rtl(ImageDraw.Draw(l),(1260,475),'نفكر كثيرًا',title_font,(*BLUE,round(255*title_b)));layer=Image.alpha_composite(layer,l)
-            if title_c>0:
-                l=Image.new('RGBA',(W,H),(0,0,0,0));draw_rtl(ImageDraw.Draw(l),(1260,605),'قبل النوم؟',title_font,(*INK,round(255*title_c)));ImageDraw.Draw(l).rounded_rectangle((890,674,1630,682),radius=4,fill=(*GOLD,round(255*title_c)));layer=Image.alpha_composite(layer,l)
-            frame=Image.alpha_composite(frame.convert('RGBA'),layer).convert('RGB')
-            draw=ImageDraw.Draw(frame)
-            # Figure/brain/moon strokes draw progressively; hand follows the active tip.
-            for j,(pts,color,length) in enumerate(paths):
-                st=starts[j];en=st+durations[j]
-                if t>=en:draw_progress(draw,pts,1,color,max(2,round(4.0*S)))
+            frame=base.copy();pos=None;active_title=False
+            # Title glyphs write in sequence from right to left, with the cursor at the reveal edge.
+            for i,(layer,bbox,st,en) in enumerate(title_layers):
+                x0,y0,x1,y1=bbox
+                if t>=en:
+                    frame=Image.alpha_composite(frame.convert('RGBA'),layer).convert('RGB')
                 elif t>=st:
-                    q=(t-st)/durations[j];draw_progress(draw,pts,q,color,max(2,round(4.0*S)))
-                    z=min(1,q)*(len(pts)-1);k=int(z);u=z-k;a,b=pts[k],pts[min(k+1,len(pts)-1)]
-                    pos=(a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u)
+                    q=max(0,min(1,(t-st)/(en-st)))
+                    reveal=Image.new('L',(W,H),0)
+                    cut=round(x1-q*(x1-x0))
+                    ImageDraw.Draw(reveal).rectangle((cut-2,y0-4,x1+2,y1+4),fill=255)
+                    reveal=reveal.filter(ImageFilter.GaussianBlur(1.2))
+                    shown=layer.copy();shown.putalpha(ImageChops.multiply(layer.getchannel('A'),reveal))
+                    frame=Image.alpha_composite(frame.convert('RGBA'),shown).convert('RGB')
+                    pos=(cut,(y0+y1)/2);active_title=True
                     break
                 else:
-                    if j==0:pos=pts[0]
+                    if i==0:
+                        pos=(x1,(y0+y1)/2)
                     else:
-                        a=paths[j-1][0][-1];b=pts[0];q=max(0,min(1,(t-(st-gap))/gap));pos=(a[0]+(b[0]-a[0])*q,a[1]+(b[1]-a[1])*q)
+                        prev_box=title_layers[i-1][1];prev_end=title_layers[i-1][3]
+                        q=max(0,min(1,(t-prev_end)/max(.001,st-prev_end)))
+                        pos=(prev_box[0]+(x1-prev_box[0])*q,
+                             (prev_box[1]+prev_box[3])/2+((y0+y1)/2-(prev_box[1]+prev_box[3])/2)*q)
+                    active_title=True
                     break
-            if pos is not None and t<draw_end+0.03:
-                x=round(pos[0]-hand_anchor[0]);y=round(pos[1]-hand_anchor[1])
+            # After the final word, the hand lifts and travels to the illustrated moon.
+            if not active_title and t<art_start:
+                b=title_layers[-1][1];a=(b[0],(b[1]+b[3])/2);z=paths[0][0][0]
+                q=max(0,min(1,(t-title_layers[-1][3])/(art_start-title_layers[-1][3])))
+                pos=(a[0]+(z[0]-a[0])*q,a[1]+(z[1]-a[1])*q)
+            # Draw moon, thought cloud, restless scribble and worried person as progressive SVG paths.
+            if t>=art_start:
+                for j,(pts,color,length) in enumerate(paths):
+                    st=starts[j];en=st+durations[j]
+                    if t>=en:
+                        draw_progress(ImageDraw.Draw(frame),pts,1,color,max(2,round(4.3*S)))
+                    elif t>=st:
+                        q=(t-st)/durations[j]
+                        draw_progress(ImageDraw.Draw(frame),pts,q,color,max(2,round(4.3*S)))
+                        z=min(1,q)*(len(pts)-1);k=int(z);u=z-k;a,b=pts[k],pts[min(k+1,len(pts)-1)]
+                        pos=(a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u)
+                        break
+                    else:
+                        if j==0:pos=pts[0]
+                        else:
+                            a=paths[j-1][0][-1];b=pts[0];q=max(0,min(1,(t-(st-gap))/gap));pos=(a[0]+(b[0]-a[0])*q,a[1]+(b[1]-a[1])*q)
+                        break
+            if pos is not None and (active_title or t<draw_end+.03):
+                x=round(pos[0]-anchor[0]);y=round(pos[1]-anchor[1])
                 rgba=frame.convert('RGBA');rgba.alpha_composite(hand,(x,y));frame=rgba.convert('RGB')
-            # Arabic timed captions, distinct from the authored illustration strokes.
-            cue=next((c for c in captions if c[0]<=t<c[1]),None)
-            if cue:
-                d=ImageDraw.Draw(frame);d.rounded_rectangle((680,904,1780,982),radius=22,fill=(248,250,250),outline=(231,236,236),width=2)
-                draw_rtl(d,(1230,943),cue[2],caption_font,INK)
+        # A restrained end push-in keeps the finished frame alive without obscuring the drawing.
         if t>=10.2:
-            zoom=1+.012*min(1,(t-10.2)/(DURATION-10.2))
+            zoom=1+.009*min(1,(t-10.2)/(DURATION-10.2))
             nw,nh=round(W*zoom),round(H*zoom)
             frame=frame.resize((nw,nh),Image.Resampling.LANCZOS)
             frame=frame.crop(((nw-W)//2,(nh-H)//2,(nw+W)//2,(nh+H)//2))

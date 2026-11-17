@@ -4,7 +4,7 @@
 
 - `overthinking_panel_00.png` — cropped first panel (0:00–0:10) from the user-provided storyboard; shown briefly as the drawing reference.
 - `overthinking_voiceover.wav` — Arabic narration generated for this opening sample.
-- `../overthinking_drawing_sample.mp4` — an 11.5-second 1080p/30 fps edit. It dissolves from the reference into 46 independently authored SVG strokes, with a moving pen-hand cursor, timed Arabic captions, narration, and a light music bed. The input panel is not image-traced or revealed as the drawing.
+- `../overthinking_drawing_sample.mp4` — an 11.5-second 1080p/30 fps edit. It opens on the supplied panel, then redraws the moon, thought cloud, scribble, and worried character as 49 authored SVG strokes; the large Arabic title is written right-to-left with the moving pen cursor. Arabic narration and a light music bed are mixed in; timed captions are provided separately as SRT. The source panel is not image-traced or revealed as the drawing.
 
 Rebuild this sample after installing `tools/wa/requirements-overthinking-sample.txt` and ensuring `assets/fonts/NotoNaskhArabic.ttf` is available:
 
