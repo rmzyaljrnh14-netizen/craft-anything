@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "profile_id": 105011,
+  "reviewed_utc_day": "2026-11-18",
+  "site": "Final Autoclaim",
+  "listed_status": "Active",
+  "profile_users_paid": 236,
+  "profile_week_paid_usd": "191.32",
+  "faucet_to_faucetpay_min_usd": "0.05",
+  "normal_external_limits": {
+    "BCH": {"minimum": "0.0001", "fee": "0.000005"},
+    "LTC": {"minimum": "0.002", "fee": "0.00002"},
+    "DOGE": {"minimum": "30", "fee": "1"}
+  }
+}

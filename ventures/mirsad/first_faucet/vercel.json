@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "node --test trial/model.test.cjs && python3 -m unittest discover -s tests && python3 build_site.py",
+  "outputDirectory": "dist",
+  "functions": {"api/status.py": {"maxDuration": 30, "includeFiles": "facts.json"}},
+  "rewrites": [
+    {"source": "/trial", "destination": "/trial/index.html"}
+  ],
+  "headers": [
+    {"source": "/(.*)", "headers": [
+      {"key": "Referrer-Policy", "value": "no-referrer"},
+      {"key": "X-Content-Type-Options", "value": "nosniff"},
+      {"key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()"}
+    ]},
+    {"source": "/", "headers": [
+      {"key": "Content-Security-Policy", "value": "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'"}
+    ]},
+    {"source": "/trial/offline.html", "headers": [
+      {"key": "Content-Disposition", "value": "attachment; filename=\"final-autoclaim-trial.html\""}
+    ]}
+  ]
+}

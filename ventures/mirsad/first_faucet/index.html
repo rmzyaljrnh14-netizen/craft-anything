@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+  <title>الصنبور الأول | متابعة Final Autoclaim</title>
+  <link rel="stylesheet" href="/screen.css"><script defer src="/screen.js"></script>
+</head>
+<body>
+<header><div class="wrap bar">
+  <a href="#main" class="brand"><span class="drop" aria-hidden="true">م</span> مِرصد <small>مختبر الصنابير</small></a>
+  <span id="connection" role="status" class="badge">جارٍ الاتصال بالعامل…</span>
+</div></header>
+<main class="wrap" id="main">
+  <section class="hero"><div>
+    <span class="eyebrow"><span class="mark"></span> الموقع الأول / DutchyCorp</span>
+    <h1><bdi>Final Autoclaim</bdi></h1>
+    <p>هنا ترى ما فحصته الأداة فعلًا. تقارن أصغر دفعة من الصنبور بحدود سحب ثلاث عملات من FaucetPay. <strong>لا تدخل حسابك ولا تجمع مكافآت.</strong></p>
+    <div class="actions"><a class="button" href="/trial/">اختبر أول دفعة في تبويبك ←</a><a class="secondary" href="#activity">شاهد سجل العامل ↓</a><a href="https://autofaucet.dutchycorp.space/signup.php" target="_blank" rel="noopener noreferrer">التسجيل في الصنبور ↗</a></div>
+    <small class="hint">دفتر التجربة خاص ولا يظهر في سجل العامل. <a href="/trial/offline.html" download="final-autoclaim-trial.html">تنزيل الأداة للاستخدام دون اتصال</a></small>
+  </div><aside class="pulse" aria-label="حالة الرصد">
+    <span class="eyebrow">من الخادم · قراءة فقط</span><h2>آخر دورة فحص</h2>
+    <div id="checked" class="clock" dir="ltr">—</div><small>بالتوقيت العالمي UTC</small>
+    <div class="pulsegrid"><div><small>رقم الدورة المحلية</small><strong id="cycle">—</strong></div><div><small>الدورة التالية خلال</small><strong id="countdown">—</strong></div></div>
+  </aside></section>
+  <section id="activity" class="card activity" aria-labelledby="activity-title">
+    <div class="activityhead"><div><span class="eyebrow">٠١ / متابعة التنفيذ</span><h2 id="activity-title">ما الذي فعله العامل؟</h2></div><a class="data" href="/api/status" target="_blank" rel="noopener">البيانات الخام <bdi>JSON ↗</bdi></a></div>
+    <p>يفحص العامل ملفّ الحدود كل 30 ثانية، ويتّصل بمصدر الأسعار مرة في الساعة عادةً. إذا لم يتغيّر شيء يُسجّل ذلك ولا يخترع نتيجة. تحديث المتصفح لا يُشغّل أي فحص خارجي.</p>
+    <ol id="events"><li>بانتظار أول استجابة من العامل…</li></ol>
+    <div class="strip"><div><small>آخر اتصال ناجح بمصدر السعر</small><strong id="last-source" dir="ltr">—</strong></div><div><small>موعد الفحص الخارجي التالي</small><strong id="next-source" dir="ltr">—</strong></div><div><small>حسابك ومكافآتك</small><strong>غير متصل</strong></div></div>
+  </section>
+  <section class="card" aria-labelledby="compare-title">
+    <span class="eyebrow">٠٢ / نتيجة الفحص الحسابي</span><h2 id="compare-title">هل تكفي أصغر دفعة للخروج من FaucetPay؟</h2>
+    <p>حدّ الصنبور للإرسال إلى FaucetPay بحسب <a href="https://autofaucet.dutchycorp.space/FAQ.php" target="_blank" rel="noopener noreferrer">الأسئلة الرسمية</a>: <strong id="faucet-floor">—</strong>. يفترض الاختبار وصول هذا المبلغ وحده، ويقارنه بحدّ السحب العادي إلى محفظة خارجية <strong>زائد الرسم</strong> احتياطًا. هذا ليس مقدار مكافأة ولا توصية باختيار عملة.</p>
+    <p id="result" class="summary" role="status">بانتظار بيانات صالحة للمقارنة.</p><ul id="routes" aria-label="مقارنة المسارات الثلاثة"></ul>
+    <small>قيم تقريبية. توافر العملة والحدّ النهائي وكيفية احتساب الرسوم تظهر في شاشة السحب الفعلية. لا تُنفَّذ هنا أي معاملة.</small>
+  </section>
+  <section class="card" id="start" aria-labelledby="start-title">
+    <span class="eyebrow">٠٣ / على الموقع الرسمي فقط</span><h2 id="start-title">تشغيل المطالبة التلقائية من حسابك</h2>
+    <ol class="steps">
+      <li><div><h3>سجّل بنفسك</h3><p>إذا كنت مؤهلًا (18+ والخدمة مسموحة لك)، استخدم اتصالك المنزلي أو المحمول المعتاد. سجل حسابًا واحدًا أو ادخل حسابك الحالي وأكمل التحقق. لا تُدخل أي بيانات هنا.</p></div></li>
+      <li><div><h3>راجع رصيد النقاط والتكلفة</h3><p>تحتاج الميزة إلى نقاط <bdi>DUTCHY</bdi> من نشاط مؤهل. من <bdi>Dashboard → Start Autoclaim</bdi> اختر وضع العملات والعملات التي تريدها. يعرض الموقع تكلفة كل دورة قبل البدء. لا حاجة للشراء لهذه التجربة.</p></div></li>
+      <li><div><h3>ابدأ الميزة الأصلية</h3><p>أكمل CAPTCHA بنفسك واضغط <bdi>Start Autoclaim</bdi>. أبقِ صفحة الصنبور مفتوحة؛ وضع <bdi>In-Page</bdi> يتطلب أيضًا بقاء التبويب في المقدمة. كل دورة خمس دقائق وتستهلك نقاطًا، لا وعدًا بدفعة. تحقّق من الوارد داخل FaucetPay، لا من عدّاد هذه اللوحة.</p></div></li>
+    </ol>
+    <div class="actions"><a class="button" href="https://autofaucet.dutchycorp.space/dashboard.php" target="_blank" rel="noopener noreferrer">افتح لوحة الصنبور ↗</a><a href="https://final-autoclaim.gitbook.io/docs/academy/how-to-launch-the-autoclaim" target="_blank" rel="noopener noreferrer">دليل التشغيل الرسمي ↗</a><a href="https://autofaucet.dutchycorp.space/terms.php" target="_blank" rel="noopener noreferrer">شروط الاستخدام ↗</a></div>
+  </section>
+  <section class="card"><span class="eyebrow">٠٤ / إثبات المصدر</span><h2>أي أرقام تتجدّد؟</h2><div class="split">
+    <div><h3>الدليل والرسوم: لقطة مؤرّخة</h3><p id="listing">بانتظار فحص اللقطة المحلية.</p><small id="facts-age"></small><div class="actions"><a href="https://faucetpay.io/faucet/profile/105011" target="_blank" rel="noopener noreferrer">قيد الصنبور ↗</a><a href="https://faucetpay.io/fees" target="_blank" rel="noopener noreferrer">جدول رسوم FaucetPay ↗</a></div></div>
+    <div><h3>أسعار العملات: نشرة يومية</h3><p id="market">لم تُقرأ النشرة بعد.</p><small>يتحقق العامل من بصمة الإصدار قبل قراءة ملفات الأسعار. لا تُستخدم لقطة حدود أقدم من سبعة أيام أو نشرة سعر أقدم من يومين للحساب.</small><div class="actions"><a href="https://github.com/fawazahmed0/exchange-api" target="_blank" rel="noopener noreferrer">مصدر النشرة المستقل ↗</a></div></div>
+  </div></section>
+  <noscript><p>روابط الموقع الرسمي تعمل أعلاه. فعّل JavaScript لرؤية التحديثات تلقائيًا، أو <a href="/api/status">افتح القراءة الحالية بصيغة JSON</a>.</p></noscript>
+</main><footer><div class="wrap">مِرصد الصنابير · تعمل المراقبة ما دامت بيئة المعاينة شغالة. لا حساب مرتبط ولا إثبات دخل شخصي.</div></footer>
+</body></html>
