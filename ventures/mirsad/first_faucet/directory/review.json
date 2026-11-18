@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "reviewed_day": "2026-11-18",
+  "directory_coins": [
+    "BTC",
+    "ETH",
+    "DOGE",
+    "LTC",
+    "BCH",
+    "DASH",
+    "DGB",
+    "TRX",
+    "USDT",
+    "FEY",
+    "ZEC",
+    "BNB",
+    "SOL",
+    "XRP",
+    "POL",
+    "ADA",
+    "TON",
+    "XLM",
+    "USDC",
+    "XMR",
+    "TRUMP",
+    "PEPE",
+    "FLT"
+  ],
+  "reviews": [
+    {
+      "id": 529,
+      "sign_in": "google",
+      "mode": "native",
+      "caution": "none",
+      "note": "تُظهر صفحة التسجيل «Continue with Google». بعد جمع نقاط ACP وتوافر Fuel، يمكنك بدء Auto Faucet من لوحة حسابك. يذكر الدليل أنه يعمل لدى المشغّل حتى بعد إغلاق التبويب، ويتوقف عند نفاد أحدهما. عُد إلى الموقع لتحصيل الرصيد الداخلي؛ السحب خطوة منفصلة.",
+      "links": [
+        [
+          "التسجيل الشخصي",
+          "https://firefaucet.win/register/"
+        ],
+        [
+          "دليل Auto Faucet",
+          "https://firefaucet.win/faq/"
+        ],
+        [
+          "شروط النشاط",
+          "https://firefaucet.win/terms/"
+        ]
+      ]
+    },
+    {
+      "id": 105011,
+      "sign_in": "google",
+      "mode": "native",
+      "caution": "none",
+      "note": "تُظهر صفحة التسجيل «Sign up with Google». بعد توفير DUTCHY ومراجعة التكلفة، ابدأ Start Autoclaim من حسابك وأكمل التحقق أنت. يجب إبقاء صفحة الصنبور مفتوحة؛ وضع In-Page يتطلب أيضًا بقاء التبويب في المقدمة.",
+      "links": [
+        [
+          "التسجيل الشخصي",
+          "https://autofaucet.dutchycorp.space/signup.php"
+        ],
+        [
+          "دليل الميزة الأصلية",
+          "https://final-autoclaim.gitbook.io/docs/academy/how-to-launch-the-autoclaim"
+        ],
+        [
+          "شروط النشاط",
+          "https://autofaucet.dutchycorp.space/terms.php"
+        ]
+      ]
+    },
+    {
+      "id": 189943,
+      "sign_in": "faucetpay",
+      "mode": "manual",
+      "caution": "none",
+      "note": "يعلن الموقع المستقل أنه يستخدم حساب FaucetPay الموجود ولا يحتاج كلمة سر جديدة. عند المراجعة عرضت صفحة المشغّل مكافأة قدرها 2 ساتوشي من BTC للمطالبة اليدوية، وانتظار 25 دقيقة بين المطالبات. هذا عرض على الشاشة لا دفعة تحقّقنا منها. لا يلزم إيداع أو رهان لاستخدام الصنبور.",
+      "links": [
+        [
+          "صفحة المشغّل",
+          "https://coindrip.site/"
+        ]
+      ]
+    },
+    {
+      "id": 12202,
+      "sign_in": "google",
+      "mode": "manual",
+      "caution": "none",
+      "note": "تعرض الصفحة خيارات Google وApple وDiscord لإنشاء الحساب. هذا موقع عروض ومهام تُكملها بنفسك، لا صنبور تلقائي. طرق الاستلام تختلف حسب البلد والمزوّد؛ تحقّق من الوسيلة المتاحة لك قبل أي مهمة.",
+      "links": [
+        [
+          "صفحة المشغّل",
+          "https://www.rewardjoy.com/"
+        ],
+        [
+          "شروط الحساب والدفع",
+          "https://www.rewardjoy.com/terms"
+        ]
+      ]
+    },
+    {
+      "id": 3448,
+      "sign_in": "operator",
+      "mode": "manual",
+      "caution": "none",
+      "note": "تُظهر الصفحة تسجيلًا خاصًا بالموقع، وتحظر تعليماته البوتات وتعدد الحسابات. حاسبة الأرباح المعروضة تقدير وليست قيدًا واردًا. إن استخدمت كلمة سر فلتكن فريدة لهذا الموقع.",
+      "links": [
+        [
+          "صفحة المشغّل وتعليماته",
+          "https://viefaucet.com/"
+        ]
+      ]
+    },
+    {
+      "id": 193202,
+      "sign_in": "faucetpay",
+      "mode": "manual",
+      "caution": "paused",
+      "note": "تعرض الصفحة دخولًا عبر FaucetPay بلا كلمة سر جديدة، لكنها أفادت بأن المطالبات متوقفة وقت المراجعة. لا نضع لها زر بدء، ولا يلزم تسجيل الدخول لمعرفة هذه الملاحظة.",
+      "links": [
+        [
+          "مصدر حالة التوقف",
+          "https://faucetstack.site/"
+        ]
+      ]
+    },
+    {
+      "id": 193140,
+      "sign_in": "faucetpay",
+      "mode": "manual",
+      "caution": "paused",
+      "note": "تذكر الصفحة أن المصادقة تتم لدى FaucetPay. ظهرت المطالبات متوقفة عند القراءة، بصرف النظر عن تصنيف الدليل للموقع. راجع الحالة العامة لاحقًا بدل تخصيص وقت الآن.",
+      "links": [
+        [
+          "مصدر حالة التوقف",
+          "https://ganhecomfaucet.site/"
+        ]
+      ]
+    },
+    {
+      "id": 191464,
+      "sign_in": "faucetpay",
+      "mode": "manual",
+      "caution": "empty",
+      "note": "تذكر الصفحة أن الدخول بحساب FaucetPay. عرضت احتياطي BTC صفريًا رغم ظهور Ready؛ لا نعدّ هذا مسار استلام متاحًا. افحص الاحتياطي قبل تخصيص أي وقت.",
+      "links": [
+        [
+          "مصدر ملاحظة الاحتياطي",
+          "https://bitearnix.com/"
+        ]
+      ]
+    }
+  ]
+}
