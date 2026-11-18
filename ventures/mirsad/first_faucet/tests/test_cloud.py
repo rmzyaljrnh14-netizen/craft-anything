@@ -105,12 +105,22 @@ class CloudTests(unittest.TestCase):
             self.assertEqual(
                 set(build(out)),
                 {
+                    "release.json",
                     "index.html",
                     "status.js",
                     "screen.css",
                     "trial/index.html",
                     "trial/offline.html",
                 },
+            )
+            import hashlib
+
+            info = json.loads((out / "release.json").read_bytes())
+            self.assertEqual(
+                info["notebook_sha256"], hashlib.sha256(notebook()[0]).hexdigest()
+            )
+            self.assertEqual(
+                set(info), {"schema", "source_revision", "notebook_sha256"}
             )
             for name in ("trial/index.html", "trial/offline.html"):
                 self.assertEqual((out / name).read_bytes(), notebook()[0])
