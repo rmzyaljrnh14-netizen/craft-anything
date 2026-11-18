@@ -29,8 +29,10 @@ from urllib.request import build_opener, HTTPRedirectHandler, Request
 import zlib
 
 if __package__:
+    from .directory_page import build as directory_page
     from .trial_bundle import build as trial_page
 else:  # Direct script invocation from the README.
+    from directory_page import build as directory_page
     from trial_bundle import build as trial_page
 
 ROOT = Path(__file__).resolve().parent
@@ -382,6 +384,7 @@ class Desk:
 
 def server(port, desk):
     notebook, notebook_policy = trial_page()
+    directory, directory_policy = directory_page()
     notebook_paths = {"/trial", "/trial/", "/trial/offline.html"}
     live_policy = "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'"
     files = {
@@ -408,6 +411,12 @@ def server(port, desk):
                     "text/html; charset=utf-8",
                     notebook,
                     notebook_policy,
+                )
+            elif path in ("/faucets", "/faucets/"):
+                mime, data, policy = (
+                    "text/html; charset=utf-8",
+                    directory,
+                    directory_policy,
                 )
             elif path == "/api/status":
                 mime = "application/json; charset=utf-8"

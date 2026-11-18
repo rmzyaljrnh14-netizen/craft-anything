@@ -1,0 +1,76 @@
+:root{color-scheme:light;--ink:#143d34;--green:#15594b;--sub:#435e55;--line:#c8d7c9;--pale:#e3eee2;--paper:#fffef9;--bg:#f2f4ed;--warm:#8b4930}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;font:16px/1.65 Tahoma,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{width:min(1060px,93%);margin:auto}
+header,.panel,.lane article{background:var(--paper)}
+header{border-bottom:1px solid var(--line)}
+.bar,.brand,.actions,.listbar,.tags,.rowhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bar,.listbar,.rowhead{justify-content:space-between}
+.bar{min-height:62px}
+.brand{font-size:24px;font-weight:700;text-decoration:none}
+.brand i{font:700 25px/36px Tahoma;background:var(--green);color:white;width:36px;text-align:center;border-radius:50% 50% 50% 8px}
+.brand small,.pill,.eyebrow{font-size:12px}
+.pill{padding:4px 12px;border:1px solid var(--line);border-radius:22px;background:var(--pale);text-decoration:none;font-weight:700}
+.hero,.lane,.fields{display:grid;gap:16px}
+.hero{grid-template-columns:1.7fr 1fr;align-items:center;padding:24px 0;gap:clamp(20px,5vw,60px)}
+h1,h2,h3,p{margin:0}
+h1{font-size:clamp(30px,5vw,55px);line-height:1.25;margin:5px 0 10px}
+h2{font-size:clamp(20px,3vw,28px);line-height:1.45;margin:2px 0 9px}
+h3{font-size:18px;line-height:1.45}
+.eyebrow,.lane article>span{font-weight:700;color:var(--sub)}
+p,small{color:var(--sub)}
+small{display:block;font-size:12px}
+.actions{margin-top:13px}
+.actions a,.lane a,.security a{font-size:14px}
+a,.linkbtn{color:var(--green);text-underline-offset:4px}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--warm);outline-offset:2px}
+.button{background:var(--green);color:white;text-decoration:none;border-radius:7px;padding:7px 14px;font-weight:700}
+aside{background:var(--green);padding:20px;border-radius:12px;color:white}
+aside .eyebrow,aside small,aside p{color:#deeee3}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-bottom:1px solid #6c9284;margin:8px 0;padding-bottom:10px}
+.metrics b{font:700 40px/1.1 ui-monospace,monospace}
+.hero aside p,.panel p,.lane p{font-size:14px}
+.lane,.fields{grid-template-columns:1fr 1fr}
+.panel,.lane article{border:1px solid var(--line);border-radius:11px;padding:clamp(14px,2.5vw,22px);overflow-wrap:anywhere}
+.lane article>span{font-size:12px}
+.guide,.panel{margin-bottom:15px}
+.lane a,.security a{display:inline-block;margin-top:4px}
+.fields{margin:13px 0;gap:10px}
+.fields label,#coin-box{font-size:13px;font-weight:700}
+select,input{background:white;color:var(--ink);border:1px solid #8caa9a;border-radius:6px;padding:7px 10px;font:inherit;max-width:100%}
+.fields select,.fields input{display:block;width:100%;margin-top:4px;font-size:15px}
+.linkbtn{border:0;background:transparent;text-decoration:underline;font:inherit;font-size:13px;cursor:pointer}
+.listbar{border-block:1px solid var(--line);padding:7px 0;margin:8px 0}
+#cards{list-style:none;padding:0;margin:12px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+.entry{padding:14px;border:1px solid var(--line);border-radius:9px;background:#f9fbf5;scroll-margin-top:12px}
+.entry:target{outline:2px solid var(--warm)}
+.entry p{margin:8px 0}
+.entry .links{display:flex;gap:4px 13px;flex-wrap:wrap}
+.entry .links a{font-size:13px}
+.rowhead bdi{font:700 19px/1.25 Arial,sans-serif}
+.tags{gap:5px;margin:7px 0}
+.tag{font-size:11px;border-radius:14px;padding:2px 8px;background:#e6eee4;color:#305c4b}
+.tag.hold{background:#f5e6d7;color:#784324}
+.entry .domain{font:12px ui-monospace,monospace;text-align:right;word-break:break-all}
+.save{font:600 12px Tahoma,sans-serif;color:var(--green);background:white;border:1px solid var(--line);padding:6px 9px;border-radius:5px;cursor:pointer}
+.save[aria-pressed=true]{background:var(--green);color:white}
+.panel>small{margin-top:7px}
+#zero{padding:14px;background:var(--pale);border-radius:6px}
+.security{border-inline-start:4px solid var(--green)}
+footer{background:var(--ink);color:#fff;padding:12px 0;font-size:13px}
+@media(max-width:720px){
+.hero,.lane,.fields,#cards{grid-template-columns:1fr}
+.hero{gap:12px;padding:16px 0}
+.hero aside{padding:13px}
+.metrics{margin:4px 0}
+.metrics b{font-size:30px}
+.fields{gap:6px}
+.brand small{display:none}
+.bar{min-height:54px}
+.actions{gap:7px 12px}
+.lane{gap:8px}
+.lane article{padding:12px}
+.guide h2{margin-bottom:5px}
+.rowhead bdi{font-size:18px}
+}

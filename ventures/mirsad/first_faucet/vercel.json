@@ -5,7 +5,8 @@
   "outputDirectory": "dist",
   "functions": {"api/status.py": {"maxDuration": 30, "includeFiles": "facts.json"}},
   "rewrites": [
-    {"source": "/trial", "destination": "/trial/index.html"}
+    {"source": "/trial", "destination": "/trial/index.html"},
+    {"source": "/faucets", "destination": "/faucets/index.html"}
   ],
   "headers": [
     {"source": "/(.*)", "headers": [

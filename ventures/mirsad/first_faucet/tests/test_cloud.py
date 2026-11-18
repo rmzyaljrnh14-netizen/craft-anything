@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from api import status
 from build_site import build
+from directory_page import build as directory
 from trial_bundle import build as notebook
 from watch import Desk, ROOT
 
@@ -109,6 +110,7 @@ class CloudTests(unittest.TestCase):
                     "index.html",
                     "status.js",
                     "screen.css",
+                    "faucets/index.html",
                     "trial/index.html",
                     "trial/offline.html",
                 },
@@ -120,7 +122,12 @@ class CloudTests(unittest.TestCase):
                 info["notebook_sha256"], hashlib.sha256(notebook()[0]).hexdigest()
             )
             self.assertEqual(
-                set(info), {"schema", "source_revision", "notebook_sha256"}
+                set(info),
+                {"schema", "source_revision", "notebook_sha256", "directory_sha256"},
+            )
+            self.assertEqual((out / "faucets/index.html").read_bytes(), directory()[0])
+            self.assertEqual(
+                info["directory_sha256"], hashlib.sha256(directory()[0]).hexdigest()
             )
             for name in ("trial/index.html", "trial/offline.html"):
                 self.assertEqual((out / name).read_bytes(), notebook()[0])
