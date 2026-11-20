@@ -104,12 +104,23 @@
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .full { grid-column: 1 / -1; }
     .status-box {
-      padding: 10px 14px;
+      padding: 12px 14px;
       border-radius: 10px;
       background: rgba(56, 189, 248, 0.14);
       border: 1px solid rgba(56, 189, 248, 0.4);
       color: #bae6fd;
       display: none;
+      white-space: pre-line;
+    }
+    .status-box.error {
+      background: rgba(239, 68, 68, 0.14);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fecaca;
+    }
+    .status-box.success {
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #a7f3d0;
     }
     .avatar {
       width: 48px;
@@ -143,6 +154,7 @@
         <div class="row">
           <button id="toggleAutoBtn" class="btn" onclick="toggleAuto()">⚡ تفعيل النشر التلقائي (24/7)</button>
           <button id="runNowBtn" class="btn btn-primary" onclick="runNow()">🚀 فحص ونشر الكل الآن</button>
+          <button id="testConnBtn" class="btn" onclick="runTestConn()">🧪 فحص الصلاحيات</button>
           <a id="sheetLink" class="btn" href="#" target="_blank">📊 فتح جدول المتابعة ↗</a>
         </div>
       </div>
@@ -172,10 +184,12 @@
     var currentFolder = 'queue';
     var autoEnabled = false;
     var videosCache = [];
+    var initialLoadDone = false;
 
-    function showMsg(text) {
+    function showMsg(text, kind) {
       var box = document.getElementById('statusBox');
       box.textContent = text;
+      box.className = 'status-box' + (kind ? ' ' + kind : '');
       box.style.display = 'block';
     }
 
@@ -201,16 +215,37 @@
               '<div><strong>' + esc(data.channel.title) + '</strong>' +
               '<div class="muted">' + esc(data.email) + ' • المشتركون: ' + esc(data.channel.subscriberCount) + ' • الفيديوهات: ' + esc(data.channel.videoCount) + '</div></div>';
           } else {
-            document.getElementById('connPill').textContent = '✅ متصل بحساب Google';
+            document.getElementById('connPill').textContent = '⚠️ تحقق من صلاحية يوتيوب';
             document.getElementById('channelBox').innerHTML =
-              '<div><strong>' + esc(data.email || 'حساب Google متصل') + '</strong><div class="muted">تأكد من وجود قناة يوتيوب منشأة على هذا الحساب</div></div>';
+              '<div><strong>' + esc(data.email || 'حساب Google متصل') + '</strong><div class="muted">' +
+              esc(data.channelError || 'تأكد من وجود قناة يوتيوب منشأة على هذا الحساب') + '</div></div>';
+            if (data.channelError) {
+              showMsg('⚠️ تنبيه اتصال يوتيوب: ' + data.channelError, 'error');
+            }
           }
           loadVideos('queue');
         })
         .withFailureHandler(function (err) {
-          showMsg('❌ خطأ في التحميل: ' + err.message);
+          showMsg('❌ خطأ في التحميل: ' + err.message, 'error');
         })
         .webGetDashboardState();
+    }
+
+    function runTestConn() {
+      var btn = document.getElementById('testConnBtn');
+      btn.disabled = true;
+      showMsg('🧪 جاري فحص الاتصال بـ Drive و YouTube...', '');
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          var hasErr = res && res.report && res.report.indexOf('❌') >= 0;
+          showMsg(res.report || 'تم الفحص.', hasErr ? 'error' : 'success');
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          showMsg('❌ فشل الفحص: ' + err.message, 'error');
+        })
+        .webTestConnection();
     }
 
     function updateAutoBtn() {
@@ -226,15 +261,15 @@
 
     function toggleAuto() {
       var target = !autoEnabled;
-      showMsg(target ? 'جاري تفعيل النشر التلقائي في الخلفية...' : 'جاري إيقاف النشر التلقائي...');
+      showMsg(target ? 'جاري تفعيل النشر التلقائي في الخلفية...' : 'جاري إيقاف النشر التلقائي...', '');
       google.script.run
         .withSuccessHandler(function (res) {
           autoEnabled = !!res.autoEnabled;
           updateAutoBtn();
-          showMsg(autoEnabled ? '✅ تم تفعيل النشر التلقائي كل ' + res.minutes + ' دقيقة — يعمل حتى لو أغلقت الجهاز!' : '⏹️ تم إيقاف النشر التلقائي.');
+          showMsg(autoEnabled ? '✅ تم تفعيل النشر التلقائي كل ' + res.minutes + ' دقيقة — يعمل حتى لو أغلقت الجهاز!' : '⏹️ تم إيقاف النشر التلقائي.', 'success');
         })
         .withFailureHandler(function (err) {
-          showMsg('❌ ' + err.message);
+          showMsg('❌ ' + err.message, 'error');
         })
         .webToggleAutoTrigger(target);
     }
@@ -242,16 +277,22 @@
     function runNow() {
       var btn = document.getElementById('runNowBtn');
       btn.disabled = true;
-      showMsg('🚀 جاري فحص مجلد YouTube_Queue ونشر الفيديوهات الجاهزة...');
+      showMsg('🚀 جاري فحص مجلد YouTube_Queue ونشر الفيديوهات الجاهزة...', '');
       google.script.run
-        .withSuccessHandler(function () {
+        .withSuccessHandler(function (res) {
           btn.disabled = false;
-          showMsg('✅ اكتملت دورة الفحص والنشر! يمكنك مراجعة النتائج أدناه أو في جدول المتابعة.');
+          var s = (res && res.summary) || {};
+          showMsg(
+            '✅ اكتملت الدورة — تم النشر: ' + (s.published || 0) +
+            ' | قيد الاستكمال: ' + (s.inProgress || 0) +
+            ' | فشل: ' + (s.failed || 0),
+            (s.failed || 0) > 0 ? 'error' : 'success'
+          );
           loadVideos(currentFolder);
         })
         .withFailureHandler(function (err) {
           btn.disabled = false;
-          showMsg('❌ ' + err.message);
+          showMsg('❌ ' + err.message, 'error');
         })
         .webRunAutoPublisherNow();
     }
@@ -269,10 +310,18 @@
       google.script.run
         .withSuccessHandler(function (res) {
           videosCache = res.videos || [];
+          if (!initialLoadDone && key === 'queue' && videosCache.length === 0) {
+            initialLoadDone = true;
+            switchFolder('root');
+            return;
+          }
+          initialLoadDone = true;
           renderVideos();
         })
         .withFailureHandler(function (err) {
+          initialLoadDone = true;
           document.getElementById('videosBox').innerHTML = '<div style="color:#fca5a5;">❌ ' + esc(err.message) + '</div>';
+          showMsg('❌ تعذر قراءة ملفات Drive: ' + err.message, 'error');
         })
         .webListVideos(key);
     }
@@ -325,13 +374,14 @@
           } else {
             btn.textContent = '✅ تم النشر';
             out.innerHTML = '✅ تم الرفع بنجاح! <a style="color:#6ee7b7;" href="' + esc(res.youtubeUrl) + '" target="_blank">مشاهدة على يوتيوب ↗</a> • <a style="color:#7dd3fc;" href="' + esc(res.studioUrl) + '" target="_blank">تعديل في Studio ↗</a>';
-            showMsg('✅ تم رفع الفيديو "' + v.suggestedTitle + '" على قناتك بنجاح!');
+            showMsg('✅ تم رفع الفيديو "' + v.suggestedTitle + '" على قناتك بنجاح!', 'success');
           }
         })
         .withFailureHandler(function (err) {
           btn.disabled = false;
           btn.textContent = '🚀 إعادة المحاولة';
           out.innerHTML = '<span style="color:#fca5a5;">❌ ' + esc(err.message) + '</span>';
+          showMsg('❌ فشل رفع "' + v.suggestedTitle + '": ' + err.message, 'error');
         })
         .webPublishSingleVideo({
           fileId: v.id,

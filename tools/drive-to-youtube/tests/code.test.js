@@ -557,3 +557,95 @@ test('recovers automatically when a saved resumable upload session expires (HTTP
   assert.equal(env.sheets.Queue.data[1][env.gas.COL.YOUTUBE_URL], 'https://www.youtube.com/watch?v=YT_FRESH_77');
 });
 
+test('webPublishSingleVideo uploads video from Web App, attaches matching thumbnail, and logs to Sheet', () => {
+  const totalBytes = 1.5 * 1024 * 1024; // 1.5 MiB with 1 MiB chunk setting -> 2 chunks
+  let initPayload = null;
+  let putCalls = 0;
+  let thumbUploaded = false;
+
+  const env = createMockGasEnv({
+    fetchHandler(url, options) {
+      if (url.includes('/drive/v3/files/vid_web_1?fields=')) {
+        return makeResp(200, {
+          id: 'vid_web_1',
+          name: 'ماذا يبقى للإنسان؟.mp4',
+          mimeType: 'video/mp4',
+          size: String(totalBytes),
+          parents: ['root_folder'],
+          trashed: false
+        });
+      }
+      if (url.includes('/upload/youtube/v3/videos?uploadType=resumable')) {
+        initPayload = JSON.parse(options.payload);
+        return makeResp(200, '', { Location: 'https://upload.yt/web/session1' });
+      }
+      if (url.includes('/drive/v3/files/vid_web_1?alt=media')) {
+        const range = options.headers.Range;
+        const m = range.match(/bytes=(\d+)-(\d+)/);
+        const len = parseInt(m[2], 10) - parseInt(m[1], 10) + 1;
+        return makeResp(206, '', {}, new Array(len).fill(7));
+      }
+      if (url === 'https://upload.yt/web/session1' && options.method === 'put') {
+        putCalls++;
+        if (putCalls === 1) {
+          return makeResp(308, '', { Range: 'bytes=0-' + (1024 * 1024 - 1) });
+        }
+        return makeResp(200, { id: 'YT_WEB_OK_99' });
+      }
+      if (url.startsWith('https://www.googleapis.com/drive/v3/files?')) {
+        return makeResp(200, {
+          files: [
+            { id: 'thumb_web_1', name: 'ماذا يبقى للإنسان؟.png', mimeType: 'image/png', size: '1024' }
+          ]
+        });
+      }
+      if (url.includes('/drive/v3/files/thumb_web_1?alt=media')) {
+        return makeResp(206, '', {}, new Array(1024).fill(9));
+      }
+      if (url.includes('/upload/youtube/v3/thumbnails/set?videoId=YT_WEB_OK_99')) {
+        thumbUploaded = true;
+        return makeResp(200, { items: [] });
+      }
+      throw new Error('Unexpected fetch: ' + url);
+    }
+  });
+
+  const res = env.gas.webPublishSingleVideo({
+    fileId: 'vid_web_1',
+    title: 'عنوان من واجهة الويب',
+    description: 'وصف تجريبي',
+    privacyStatus: 'unlisted',
+    moveToPublished: false
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.inProgress, false);
+  assert.equal(res.videoId, 'YT_WEB_OK_99');
+  assert.equal(res.youtubeUrl, 'https://www.youtube.com/watch?v=YT_WEB_OK_99');
+  assert.equal(putCalls, 2);
+  assert.equal(thumbUploaded, true);
+  assert.equal(initPayload.snippet.title, 'عنوان من واجهة الويب');
+  assert.equal(initPayload.snippet.description, 'وصف تجريبي');
+  assert.equal(initPayload.status.privacyStatus, 'unlisted');
+  assert.equal(env.sheets.Queue.data.length, 2);
+  assert.equal(env.sheets.Queue.data[1][env.gas.COL.STATUS], 'PUBLISHED');
+  assert.ok(env.sheets.Logs.data.length >= 2);
+});
+
+test('webGetDashboardState surfaces YouTube API error clearly when permission is missing', () => {
+  const env = createMockGasEnv({
+    fetchHandler(url) {
+      if (url.includes('/youtube/v3/channels?')) {
+        return makeResp(403, { error: { message: 'Request had insufficient authentication scopes.' } });
+      }
+      throw new Error('Unexpected fetch: ' + url);
+    }
+  });
+
+  const state = env.gas.webGetDashboardState();
+  assert.equal(state.ok, true);
+  assert.equal(state.channel, null);
+  assert.match(state.channelError, /insufficient authentication scopes/i);
+});
+
+

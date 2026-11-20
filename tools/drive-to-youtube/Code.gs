@@ -23,7 +23,7 @@ const DEFAULT_SETTINGS = {
   AUTO_START_UPLOAD: true,
   MAX_VIDEOS_PER_RUN: 2,
   MAX_RETRIES: 3,
-  CHUNK_SIZE_MB: 16,
+  CHUNK_SIZE_MB: 8,
   NOTIFY_EMAIL: ''
 };
 
@@ -1149,6 +1149,18 @@ function showUiAlert(title, message) {
 // Built-in Web App UI (Zero Google Cloud / Zero Client ID — 1-Click Google Auth)
 // ============================================================================
 
+/**
+ * Keeps Google Apps Script's automatic OAuth scope analyzer aware that this
+ * project needs full Google Drive + YouTube upload scopes even when the user
+ * does not manually edit appsscript.json. Never needs to be called directly.
+ */
+function _ensureOAuthScopes() {
+  DriveApp.getRootFolder();
+  YouTube.Channels.list('snippet', { mine: true });
+  YouTube.Videos.insert({ snippet: { title: '' }, status: { privacyStatus: 'private' } }, 'snippet,status');
+  YouTube.Thumbnails.set('');
+}
+
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Drive2Tube — ربط قوقل درايف بيوتيوب تلقائياً')
@@ -1165,20 +1177,32 @@ function getConnectedYouTubeChannel(token) {
   });
   const code = resp.getResponseCode();
   const data = parseJsonSafe(resp.getContentText());
-  if (code >= 200 && code < 300 && data && Array.isArray(data.items) && data.items.length > 0) {
-    const item = data.items[0];
+  if (code >= 200 && code < 300) {
+    if (data && Array.isArray(data.items) && data.items.length > 0) {
+      const item = data.items[0];
+      return {
+        channel: {
+          id: item.id,
+          title: item.snippet ? item.snippet.title : 'قناة يوتيوب',
+          thumbnail:
+            item.snippet && item.snippet.thumbnails && item.snippet.thumbnails.default
+              ? item.snippet.thumbnails.default.url
+              : '',
+          subscriberCount: item.statistics ? item.statistics.subscriberCount || '0' : '0',
+          videoCount: item.statistics ? item.statistics.videoCount || '0' : '0'
+        },
+        error: ''
+      };
+    }
     return {
-      id: item.id,
-      title: item.snippet ? item.snippet.title : 'قناة يوتيوب',
-      thumbnail:
-        item.snippet && item.snippet.thumbnails && item.snippet.thumbnails.default
-          ? item.snippet.thumbnails.default.url
-          : '',
-      subscriberCount: item.statistics ? item.statistics.subscriberCount || '0' : '0',
-      videoCount: item.statistics ? item.statistics.videoCount || '0' : '0'
+      channel: null,
+      error: 'لم يتم العثور على قناة يوتيوب منشأة على هذا الحساب بعد. افتح youtube.com وأنشئ قناة أولاً.'
     };
   }
-  return null;
+  return {
+    channel: null,
+    error: 'YouTube API (' + code + '): ' + extractApiError(data, resp.getContentText())
+  };
 }
 
 function hasAutoPublishTrigger() {
@@ -1206,16 +1230,21 @@ function webGetDashboardState() {
   }
 
   let channel = null;
+  let channelError = '';
   try {
-    channel = getConnectedYouTubeChannel(token);
+    const res = getConnectedYouTubeChannel(token);
+    channel = res.channel;
+    channelError = res.error;
   } catch (e) {
     channel = null;
+    channelError = e && e.message ? e.message : String(e);
   }
 
   return {
     ok: true,
     email: email,
     channel: channel,
+    channelError: channelError,
     autoEnabled: hasAutoPublishTrigger(),
     settings: {
       queueFolderId: settings.QUEUE_FOLDER_ID,
@@ -1270,69 +1299,149 @@ function webListVideos(folderKey) {
 }
 
 function webPublishSingleVideo(payload) {
-  const settings = loadSettings();
-  const token = ScriptApp.getOAuthToken();
-  const fileId = String(payload.fileId || '').trim();
-  if (!fileId) {
-    throw new Error('معرف الفيديو مطلوب.');
-  }
+  const safePayload = payload || {};
+  const fileId = String(safePayload.fileId || '').trim();
+  let fileNameForLog = fileId || '-';
 
-  const fileMeta = driveGetFileMetadata(fileId, token);
-  const metadata = buildYouTubeMetadata(
-    {
-      title: payload.title,
-      description: payload.description,
-      tags: payload.tags,
-      privacyStatus: payload.privacyStatus || settings.DEFAULT_PRIVACY,
-      publishAt: payload.publishAt || '',
-      categoryId: payload.categoryId || settings.DEFAULT_CATEGORY_ID,
-      madeForKids: Boolean(payload.madeForKids)
-    },
-    settings,
-    fileMeta.name
-  );
+  try {
+    if (!fileId) {
+      throw new Error('معرف الفيديو مطلوب.');
+    }
 
-  const result = uploadDriveFileToYouTubeResumable(
-    fileId,
-    metadata,
-    settings,
-    token,
-    Date.now(),
-    function () {}
-  );
+    const settings = loadSettings();
+    const token = ScriptApp.getOAuthToken();
+    const fileMeta = driveGetFileMetadata(fileId, token);
 
-  if (result.status !== 'COMPLETED') {
-    return {
-      ok: true,
-      inProgress: true,
-      progressPct: result.progressPct,
-      message: 'تم رفع ' + result.progressPct + '% من الفيديو — اضغط مرة أخرى للاستئناف أو دع النشر التلقائي يكمله.'
-    };
-  }
+    if (fileMeta.trashed) {
+      throw new Error('الملف موجود في سلة المحذوفات في Google Drive.');
+    }
 
-  const youtubeUrl = 'https://www.youtube.com/watch?v=' + result.videoId;
-  const studioUrl = 'https://studio.youtube.com/video/' + result.videoId + '/edit';
+    const fileSize = Number(fileMeta.size || 0);
+    if (!Number.isFinite(fileSize) || fileSize <= 0) {
+      throw new Error('حجم الملف غير صالح أو الملف فارغ (0 بايت).');
+    }
 
-  // Optional move to Published folder
-  if (payload.moveToPublished && settings.PUBLISHED_FOLDER_ID) {
+    const fileName = fileMeta.name || 'video.mp4';
+    fileNameForLog = fileName;
+    const mimeType = resolveVideoMimeType(fileMeta.mimeType, fileName);
+
+    // Build a standard Queue-shaped row so buildYouTubeMetadata applies identical validation/defaults
+    const row = new Array(15).fill('');
+    row[COL.FILE_ID] = fileId;
+    row[COL.FILE_NAME] = fileName;
+    row[COL.SIZE_MB] = Math.round((fileSize / (1024 * 1024)) * 100) / 100;
+    row[COL.TITLE] = safePayload.title ? String(safePayload.title) : cleanVideoTitle(fileName);
+    row[COL.DESCRIPTION] = safePayload.description !== undefined ? String(safePayload.description) : '';
+    row[COL.TAGS] = safePayload.tags !== undefined ? String(safePayload.tags) : '';
+    row[COL.PRIVACY] = safePayload.privacyStatus || settings.DEFAULT_PRIVACY;
+    row[COL.PUBLISH_AT] = safePayload.publishAt || '';
+    row[COL.CATEGORY_ID] = safePayload.categoryId || settings.DEFAULT_CATEGORY_ID;
+    row[COL.MADE_FOR_KIDS] = safePayload.madeForKids ? 'TRUE' : 'FALSE';
+
+    const metadata = buildYouTubeMetadata(row, fileName, settings);
+    const webChunkMb = Math.min(8, Number(settings.CHUNK_SIZE_MB) || 8);
+
+    const result = uploadDriveFileToYouTubeResumable({
+      fileId: fileId,
+      fileName: fileName,
+      fileSize: fileSize,
+      mimeType: mimeType,
+      metadata: metadata,
+      chunkSizeBytes: computeChunkSizeBytes(webChunkMb),
+      token: token,
+      runStartedAt: Date.now(),
+      onProgress: function () {}
+    });
+
+    if (!result.completed) {
+      appendLog('INFO', fileName, 'تم رفع ' + result.percent + '% من واجهة الويب (قيد الاستكمال).');
+      return {
+        ok: true,
+        inProgress: true,
+        progressPct: result.percent,
+        message: 'تم رفع ' + result.percent + '% من الفيديو — اضغط «استكمال الرفع» لإكمال الباقي.'
+      };
+    }
+
+    const youtubeUrl = 'https://www.youtube.com/watch?v=' + result.videoId;
+    const studioUrl = 'https://studio.youtube.com/video/' + result.videoId + '/edit';
+    const notesParts = ['تم النشر من واجهة الويب'];
+
+    // Optional matching thumbnail in same parent folder
     const sourceParent = fileMeta.parents && fileMeta.parents.length ? fileMeta.parents[0] : '';
-    if (sourceParent !== settings.PUBLISHED_FOLDER_ID) {
+    if (sourceParent) {
       try {
-        driveMoveFile(fileId, sourceParent, settings.PUBLISHED_FOLDER_ID, token);
-      } catch (e) {
-        appendLog('WARN', fileId, 'تم الرفع لكن تعذر نقل الملف: ' + e.message);
+        const folderThumbs = listFolderThumbnails(sourceParent, token);
+        const thumbFile = findMatchingThumbnail(fileName, folderThumbs);
+        if (thumbFile) {
+          uploadThumbnailFromDrive(result.videoId, thumbFile, token);
+          notesParts.push('تم رفع الصورة المصغرة');
+          if (safePayload.moveToPublished && settings.PUBLISHED_FOLDER_ID && sourceParent !== settings.PUBLISHED_FOLDER_ID) {
+            try {
+              driveMoveFile(thumbFile.id, sourceParent, settings.PUBLISHED_FOLDER_ID, token);
+            } catch (moveThumbErr) {
+              appendLog('WARN', thumbFile.name, 'تم رفع الصورة المصغرة لكن تعذر نقلها: ' + moveThumbErr.message);
+            }
+          }
+        }
+      } catch (thumbErr) {
+        notesParts.push('تنبيه صورة مصغرة: ' + thumbErr.message);
       }
     }
-  }
 
-  appendLog('INFO', fileId, 'تم النشر من واجهة الويب: ' + youtubeUrl);
-  return {
-    ok: true,
-    inProgress: false,
-    videoId: result.videoId,
-    youtubeUrl: youtubeUrl,
-    studioUrl: studioUrl
-  };
+    // Optional move video to Published folder
+    if (safePayload.moveToPublished && settings.PUBLISHED_FOLDER_ID) {
+      if (sourceParent && sourceParent !== settings.PUBLISHED_FOLDER_ID) {
+        try {
+          driveMoveFile(fileId, sourceParent, settings.PUBLISHED_FOLDER_ID, token);
+        } catch (moveErr) {
+          notesParts.push('تنبيه نقل الملف: ' + moveErr.message);
+          appendLog('WARN', fileName, 'تم الرفع لكن تعذر نقل الملف: ' + moveErr.message);
+        }
+      }
+    }
+
+    // Record in Queue & Logs sheets
+    try {
+      const queueSheet = getSheet(SHEET_NAMES.QUEUE);
+      queueSheet.appendRow([
+        fileId,
+        fileName,
+        row[COL.SIZE_MB],
+        STATUS.PUBLISHED,
+        metadata.snippet.title,
+        metadata.snippet.description,
+        (metadata.snippet.tags || []).join(', '),
+        metadata.status.privacyStatus,
+        metadata.status.publishAt || '',
+        metadata.snippet.categoryId,
+        metadata.status.selfDeclaredMadeForKids ? 'TRUE' : 'FALSE',
+        '100%',
+        youtubeUrl,
+        0,
+        notesParts.join(' | ')
+      ]);
+    } catch (sheetErr) {
+      // Do not fail a successful upload if sheet logging fails
+    }
+
+    appendLog('SUCCESS', fileName, 'تم النشر من واجهة الويب: ' + youtubeUrl);
+    return {
+      ok: true,
+      inProgress: false,
+      videoId: result.videoId,
+      youtubeUrl: youtubeUrl,
+      studioUrl: studioUrl
+    };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    appendLog('ERROR', fileNameForLog, 'فشل الرفع من واجهة الويب: ' + msg);
+    throw new Error(msg);
+  }
+}
+
+function webTestConnection() {
+  return { ok: true, report: testConnection() };
 }
 
 function webToggleAutoTrigger(enable) {
@@ -1360,8 +1469,8 @@ function webToggleAutoTrigger(enable) {
 }
 
 function webRunAutoPublisherNow() {
-  runAutoPublisher();
-  return { ok: true };
+  const summary = runAutoPublisher();
+  return { ok: true, summary: summary };
 }
 
 // Export for automated unit testing in Node.js (ignored in Google Apps Script V8)
