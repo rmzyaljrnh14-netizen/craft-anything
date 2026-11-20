@@ -49,6 +49,11 @@ test('assertValidYouTubeUploadUri blocks SSRF URLs and allows YouTube resumable 
       'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=abc123'
     )
   );
+  assert.doesNotThrow(() =>
+    googleApi.assertValidYouTubeUploadUri(
+      'https://youtube.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=abc123'
+    )
+  );
   assert.throws(() => googleApi.assertValidYouTubeUploadUri('http://169.254.169.254/latest/meta-data'));
   assert.throws(() => googleApi.assertValidYouTubeUploadUri('https://evil.example.com/upload'));
 });
@@ -57,7 +62,7 @@ test('mocked chunked upload transitions 308 -> 200 and returns YouTube video ID'
   const fakeUploadUri = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=xyz';
   const calls = [];
   const mockFetch = async (url, opts) => {
-    calls.push({ url, method: opts.method, headers: opts.headers });
+    calls.push({ url, method: opts.method, headers: opts.headers, redirect: opts.redirect });
     if (opts.method === 'POST') {
       return {
         status: 200,
@@ -107,6 +112,8 @@ test('mocked chunked upload transitions 308 -> 200 and returns YouTube video ID'
   assert.equal(r2.done, true);
   assert.equal(r2.videoId, 'YT_LIVE_888');
   assert.equal(r2.percent, 100);
+  assert.equal(calls[1].redirect, 'manual');
+  assert.equal(calls[2].redirect, 'manual');
 });
 
 test('HTTP server serves RTL UI, health defaults, OAuth config, and OAuth redirect cleanly', async () => {

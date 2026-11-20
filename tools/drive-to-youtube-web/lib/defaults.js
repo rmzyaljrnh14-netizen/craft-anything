@@ -10,7 +10,7 @@ const DEFAULTS = {
   DEFAULT_PRIVACY: 'private',
   DEFAULT_CATEGORY_ID: '22',
   DEFAULT_LANGUAGE: 'ar',
-  CHUNK_SIZE_MB: 8
+  CHUNK_SIZE_MB: 4
 };
 
 const OAUTH_SCOPES = [

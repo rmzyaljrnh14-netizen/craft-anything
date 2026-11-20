@@ -126,9 +126,16 @@
       ...options,
       headers: authHeaders(options.headers || {})
     });
-    const data = await resp.json().catch(() => ({}));
+    const text = await resp.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
     if (!resp.ok) {
-      throw new Error(data.error || `HTTP ${resp.status}`);
+      const detail = data.error || (text ? text.replace(/<[^>]+>/g, ' ').trim().slice(0, 220) : '') || `HTTP ${resp.status}`;
+      throw new Error(detail);
     }
     return data;
   }
@@ -233,7 +240,11 @@
           (state.channel ? ` — قناة: ${state.channel.title}` : ''),
         'success'
       );
-      await loadVideos(state.currentFolderId);
+      if (data.youtubeError) {
+        showAlert('⚠️ تنبيه اتصال يوتيوب: ' + data.youtubeError, 'error');
+        addLog('⚠️ خطأ اتصال يوتيوب: ' + data.youtubeError, 'error');
+      }
+      await loadVideos(state.currentFolderId, { autoFallbackToRoot: true });
     }
   }
 
@@ -425,7 +436,7 @@
   // Drive Video Browser & Metadata Editor
   // ============================================================================
 
-  async function loadVideos(folderId) {
+  async function loadVideos(folderId, opts = {}) {
     if (!state.connected) return;
     state.currentFolderId = folderId;
     el.refreshVideosBtn.disabled = true;
@@ -435,11 +446,29 @@
       const data = await apiFetch(`/api/drive/videos?folderId=${encodeURIComponent(folderId)}`);
       state.videos = data.videos || [];
       state.folders = data.folders || [];
+
+      if (
+        opts.autoFallbackToRoot &&
+        state.videos.length === 0 &&
+        state.health &&
+        folderId === state.health.defaults.QUEUE_FOLDER_ID
+      ) {
+        const rootTab = document.querySelector('.folder-tab[data-folder-preset="root"]');
+        if (rootTab) {
+          document.querySelectorAll('.folder-tab').forEach((b) => b.classList.remove('active'));
+          rootTab.classList.add('active');
+          state.currentPreset = 'root';
+        }
+        await loadVideos('root', { autoFallbackToRoot: false });
+        return;
+      }
+
       renderSubfolders();
       renderVideos();
       addLog(`تم تحميل ${state.videos.length} فيديو من Google Drive.`, 'info');
     } catch (err) {
       el.videosList.innerHTML = `<div class="empty-state"><p style="color:#fca5a5;">${escapeHtml(err.message)}</p></div>`;
+      showAlert('❌ خطأ في قراءة Google Drive: ' + err.message, 'error');
       addLog('خطأ في قراءة Google Drive: ' + err.message, 'error');
     } finally {
       el.refreshVideosBtn.disabled = false;
@@ -629,7 +658,7 @@
 
   async function publishSingleVideo(video) {
     const meta = getVideoMeta(video);
-    const chunkSizeMb = Number(el.chunkSizeSelect.value || 8);
+    const chunkSizeMb = Number(el.chunkSizeSelect.value || 4);
 
     state.uploadStatus[video.id] = {
       status: 'uploading',
@@ -665,7 +694,7 @@
       let chunkIdx = 0;
       let videoId = null;
 
-      // 2. Stream chunk-by-chunk Drive -> Server -> YouTube
+      // 2. Stream chunk-by-chunk Drive -> Server -> YouTube (with automatic transient retry)
       while (offset < totalSize) {
         chunkIdx++;
         const start = offset;
@@ -678,18 +707,33 @@
         };
         renderVideos();
 
-        const chunkRes = await apiFetch('/api/upload/chunk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileId: video.id,
-            uploadUri: initRes.uploadUri,
-            start,
-            end,
-            totalSize,
-            mimeType: initRes.mimeType
-          })
-        });
+        let chunkRes = null;
+        let lastErr = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            chunkRes = await apiFetch('/api/upload/chunk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileId: video.id,
+                uploadUri: initRes.uploadUri,
+                start,
+                end,
+                totalSize,
+                mimeType: initRes.mimeType
+              })
+            });
+            lastErr = null;
+            break;
+          } catch (chunkErr) {
+            lastErr = chunkErr;
+            if (attempt < 2) {
+              addLog(`إعادة محاولة المقطع ${chunkIdx}/${totalChunks} بعد خطأ مؤقت...`, 'warn');
+              await new Promise((r) => setTimeout(r, 1500));
+            }
+          }
+        }
+        if (lastErr) throw lastErr;
 
         if (chunkRes.done) {
           videoId = chunkRes.videoId;
@@ -767,6 +811,7 @@
         message: err.message
       };
       renderVideos();
+      showAlert(`❌ فشل رفع "${meta.title}": ${err.message}`, 'error');
       addLog(`❌ فشل رفع "${meta.title}": ${err.message}`, 'error');
       return false;
     }

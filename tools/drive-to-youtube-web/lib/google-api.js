@@ -11,13 +11,44 @@ const {
 const { readSession, writeSession, getOAuthCredentials, extractBearerToken } = require('./session');
 
 const YOUTUBE_RESUMABLE_PREFIX = 'https://www.googleapis.com/upload/youtube/v3/videos';
+const ALLOWED_YOUTUBE_UPLOAD_HOSTS = new Set([
+  'www.googleapis.com',
+  'youtube.googleapis.com'
+]);
 
 function extractApiError(parsed, rawText) {
+  let rawMsg = String(rawText || 'Unknown Google API error').slice(0, 350);
+  let reason = '';
+
   if (parsed && parsed.error) {
-    if (typeof parsed.error === 'string') return parsed.error_description || parsed.error;
-    if (parsed.error.message) return parsed.error.message;
+    if (typeof parsed.error === 'string') {
+      rawMsg = parsed.error_description || parsed.error;
+    } else {
+      if (parsed.error.message) rawMsg = parsed.error.message;
+      if (Array.isArray(parsed.error.errors) && parsed.error.errors[0] && parsed.error.errors[0].reason) {
+        reason = String(parsed.error.errors[0].reason);
+      }
+    }
   }
-  return String(rawText || 'Unknown Google API error').slice(0, 300);
+
+  const lower = `${reason} ${rawMsg}`.toLowerCase();
+  if (lower.includes('has not been used in project') || lower.includes('accessnotconfigured') || lower.includes('it is disabled')) {
+    return `واجهة YouTube أو Drive غير مفعّلة في مشروعك على Google Cloud — فعّل YouTube Data API v3 و Google Drive API ثم حاول بعد دقيقة. (${rawMsg})`;
+  }
+  if (lower.includes('youtubesignuprequired') || lower.includes('channelnotfound') || lower.includes('has not created a youtube channel')) {
+    return `لا توجد قناة يوتيوب منشأة على هذا الحساب بعد — افتح youtube.com وأنشئ قناة أولاً ثم أعد المحاولة. (${rawMsg})`;
+  }
+  if (lower.includes('insufficientpermissions') || lower.includes('insufficient authentication scopes') || lower.includes('access_token_scope_insufficient')) {
+    return `صلاحية الرفع على يوتيوب غير مفعّلة في هذه الجلسة — اضغط «تسجيل الخروج» ثم أعد الربط مع تحديد جميع مربعات الصلاحيات. (${rawMsg})`;
+  }
+  if (lower.includes('uploadlimitexceeded')) {
+    return `وصلت القناة للحد اليومي للرفع على يوتيوب (أثبت ملكية القناة أو جرّب لاحقاً). (${rawMsg})`;
+  }
+  if (lower.includes('quotaexceeded')) {
+    return `تم استهلاك الحصة اليومية لـ YouTube API في مشروعك على Google Cloud. (${rawMsg})`;
+  }
+
+  return rawMsg;
 }
 
 async function parseJsonResponse(resp) {
@@ -240,8 +271,11 @@ async function downloadDriveRange(accessToken, fileId, start, end, fetchImpl = f
     throw new Error(`فشل قراءة مقطع الفيديو من Drive (${resp.status}): ${extractApiError(parsed, text)}`);
   }
   const arrayBuf = await resp.arrayBuffer();
-  const buf = Buffer.from(arrayBuf);
+  let buf = Buffer.from(arrayBuf);
   const expected = end - start + 1;
+  if (resp.status === 200 && buf.length > expected && end < buf.length) {
+    buf = buf.subarray(start, end + 1);
+  }
   if (buf.length !== expected) {
     throw new Error(`عدم تطابق حجم المقطع المحمّل من Drive (المتوقع ${expected} بايت، الفعلي ${buf.length} بايت).`);
   }
@@ -290,14 +324,25 @@ async function initiateYouTubeResumableUpload(accessToken, metadata, fileSize, m
   }
 
   const location = resp.headers.get('location') || resp.headers.get('Location');
-  if (!location || !location.startsWith(YOUTUBE_RESUMABLE_PREFIX)) {
-    throw new Error('لم يُرجع YouTube رابط جلسة الرفع القابل للاستئناف.');
-  }
+  assertValidYouTubeUploadUri(location);
   return location;
 }
 
 function assertValidYouTubeUploadUri(uploadUri) {
-  if (typeof uploadUri !== 'string' || !uploadUri.startsWith(YOUTUBE_RESUMABLE_PREFIX)) {
+  if (typeof uploadUri !== 'string' || !uploadUri) {
+    throw new Error('لم يُرجع YouTube رابط جلسة الرفع القابل للاستئناف.');
+  }
+  let parsed;
+  try {
+    parsed = new URL(uploadUri);
+  } catch {
+    throw new Error('رابط جلسة رفع YouTube غير صالح.');
+  }
+  if (
+    parsed.protocol !== 'https:' ||
+    !ALLOWED_YOUTUBE_UPLOAD_HOSTS.has(parsed.hostname) ||
+    !parsed.pathname.startsWith('/upload/youtube/v3/videos')
+  ) {
     throw new Error('رابط جلسة رفع YouTube غير صالح.');
   }
 }
@@ -307,6 +352,7 @@ async function uploadChunkToYouTube(accessToken, { uploadUri, start, end, totalS
 
   const resp = await fetchImpl(uploadUri, {
     method: 'PUT',
+    redirect: 'manual',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': mimeType,
