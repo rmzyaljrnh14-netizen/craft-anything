@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive2Tube Studio — النشر التلقائي من قوقل درايف إلى يوتيوب</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Studio Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="4" width="20" height="16" rx="4" fill="#E11D48"/>
+            <path d="M10 8.5L16 12L10 15.5V8.5Z" fill="#FFFFFF"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Drive2Tube Studio</h1>
+          <p class="brand-sub">ربط قوقل درايف بقناتك على يوتيوب والنشر التلقائي</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div id="autoStatusPill" class="pill pill-muted">
+          <span class="dot"></span>
+          <span id="autoStatusText">النشر التلقائي: متوقف</span>
+        </div>
+
+        <div id="connectionBadge" class="pill pill-offline">
+          <span class="dot"></span>
+          <span id="connectionBadgeText">غير متصل بـ Google</span>
+        </div>
+
+        <button id="openSetupBtn" class="btn btn-ghost" type="button">⚙️ إعدادات الربط</button>
+        <button id="logoutBtn" class="btn btn-ghost hidden" type="button">تسجيل الخروج</button>
+      </div>
+    </header>
+
+    <!-- Alert Banner -->
+    <div id="alertBanner" class="alert hidden" role="alert">
+      <span id="alertText"></span>
+      <button id="alertCloseBtn" class="alert-close" type="button" aria-label="إغلاق">×</button>
+    </div>
+
+    <!-- Setup & OAuth Connect Panel -->
+    <section id="setupPanel" class="card setup-card">
+      <div class="card-header">
+        <div>
+          <h2>🔗 ربط حساب Google وقناة YouTube</h2>
+          <p class="muted">اربط حسابك مرة واحدة لتصفح مجلدات Google Drive ورفع الفيديوهات تلقائياً إلى قناتك على YouTube.</p>
+        </div>
+        <button id="toggleSetupBtn" class="btn btn-ghost btn-sm hidden" type="button">إخفاء الإعدادات</button>
+      </div>
+
+      <div class="setup-grid">
+        <!-- Step 1: OAuth Config -->
+        <div class="setup-step">
+          <div class="step-badge">الخطوة 1</div>
+          <h3>إعداد مفتاح Google OAuth (مرة واحدة)</h3>
+          <p class="muted small">
+            أنشئ <strong>OAuth Client ID</strong> من نوع <strong>Web Application</strong> في Google Cloud، وفعّل خدمتي Drive و YouTube، ثم أضف الرابطين أدناه:
+          </p>
+
+          <div class="quick-links">
+            <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener" class="link-chip">1. تفعيل Drive API ↗</a>
+            <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener" class="link-chip">2. تفعيل YouTube API v3 ↗</a>
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="link-chip">3. إنشاء OAuth Client ID ↗</a>
+          </div>
+
+          <div class="copy-row">
+            <label>Authorized JavaScript Origin:</label>
+            <div class="copy-box">
+              <code id="originDisplay">...</code>
+              <button class="btn btn-xs btn-secondary copy-btn" data-copy="originDisplay" type="button">نسخ</button>
+            </div>
+          </div>
+
+          <div class="copy-row">
+            <label>Authorized Redirect URI:</label>
+            <div class="copy-box">
+              <code id="redirectUriDisplay">...</code>
+              <button class="btn btn-xs btn-secondary copy-btn" data-copy="redirectUriDisplay" type="button">نسخ</button>
+            </div>
+          </div>
+
+          <form id="oauthConfigForm" class="form-stack">
+            <div class="field">
+              <label for="clientIdInput">Google OAuth Client ID <span class="req">*</span></label>
+              <input id="clientIdInput" type="text" dir="ltr" placeholder="xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="clientSecretInput">Google OAuth Client Secret <span class="muted small">(اختياري — للتجديد التلقائي الدائم)</span></label>
+              <input id="clientSecretInput" type="password" dir="ltr" placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+            </div>
+            <div class="form-actions">
+              <button id="saveConfigBtn" class="btn btn-secondary" type="submit">💾 حفظ المفتاح</button>
+              <span id="configStatusHint" class="muted small"></span>
+            </div>
+          </form>
+        </div>
+
+        <!-- Step 2: Connect Button -->
+        <div class="setup-step connect-box">
+          <div class="step-badge step-badge-red">الخطوة 2</div>
+          <h3>تسجيل الدخول وربط القناة</h3>
+          <p class="muted small">
+            اضغط الزر أدناه لاختيار حسابك في Google ومنح الأداة صلاحية قراءة فيديوهات <strong>Google Drive</strong> ورفعها على قناتك في <strong>YouTube</strong>.
+          </p>
+
+          <div class="permissions-list">
+            <div class="perm-item">✅ قراءة ونقل ملفات الفيديو من مجلدات Google Drive</div>
+            <div class="perm-item">✅ رفع الفيديوهات والصور المصغرة على قناتك في YouTube</div>
+            <div class="perm-item">✅ تسجيل روابط النشر تلقائياً في جدول Google Sheets</div>
+          </div>
+
+          <button id="connectGoogleBtn" class="btn btn-primary btn-lg btn-block" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#fff" d="M21.35 11.1h-9.18v2.92h5.27c-.23 1.24-.92 2.29-1.96 2.99v2.48h3.17c1.86-1.71 2.93-4.23 2.93-7.21 0-.4-.04-.79-.23-1.18z"/>
+              <path fill="#fff" d="M12.17 22c2.65 0 4.88-.88 6.51-2.38l-3.17-2.48c-.88.59-2 1-3.34 1-2.57 0-4.74-1.73-5.52-4.06H3.38v2.56C5 19.86 8.33 22 12.17 22z"/>
+              <path fill="#fff" d="M6.65 14.08a5.88 5.88 0 0 1 0-3.74V7.78H3.38a9.84 9.84 0 0 0 0 8.86l3.27-2.56z"/>
+              <path fill="#fff" d="M12.17 6.28c1.44 0 2.74.5 3.76 1.47l2.82-2.82C17.04 3.33 14.82 2.4 12.17 2.4 8.33 2.4 5 4.54 3.38 7.78l3.27 2.56c.78-2.33 2.95-4.06 5.52-4.06z"/>
+            </svg>
+            <span>ربط حساب Google وقناة YouTube</span>
+          </button>
+
+          <p id="connectModeHint" class="muted small center">
+            يدعم الربط السريع (بـ Client ID فقط) أو الربط الدائم بالتجديد التلقائي (مع Client Secret).
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Studio Dashboard -->
+    <main class="studio-grid">
+      <!-- Right Main Column: Drive Videos Queue -->
+      <section class="main-col">
+        <div class="card">
+          <div class="card-header wrap">
+            <div>
+              <h2>🎬 فيديوهات Google Drive الجاهزة للنشر</h2>
+              <p class="muted small">اختر المجلد، عدّل العنوان والوصف والخصوصية لأي فيديو، أو انشر الكل تلقائياً.</p>
+            </div>
+            <div class="header-btns">
+              <button id="refreshVideosBtn" class="btn btn-secondary btn-sm" type="button" disabled>🔄 تحديث القائمة</button>
+              <button id="publishAllBtn" class="btn btn-primary btn-sm" type="button" disabled>🚀 نشر الجاهز الآن</button>
+            </div>
+          </div>
+
+          <!-- Folder Switcher -->
+          <div class="folder-bar">
+            <div class="folder-tabs" id="folderTabs">
+              <button class="folder-tab active" data-folder-preset="queue" type="button">📥 مجلد الانتظار (YouTube_Queue)</button>
+              <button class="folder-tab" data-folder-preset="root" type="button">🏠 ملفاتي الرئيسية (My Drive)</button>
+              <button class="folder-tab" data-folder-preset="published" type="button">✅ المنشورة (YouTube_Published)</button>
+            </div>
+            <div class="custom-folder-row">
+              <input id="customFolderIdInput" type="text" dir="ltr" placeholder="أو الصق معرف مجلد Drive مخصص (Folder ID)..." />
+              <button id="loadCustomFolderBtn" class="btn btn-secondary btn-xs" type="button" disabled>فتح المجلد</button>
+            </div>
+            <div id="subfoldersRow" class="subfolders-row hidden"></div>
+          </div>
+
+          <!-- Video List Container -->
+          <div id="videosList" class="videos-list">
+            <div class="empty-state">
+              <div class="empty-icon">📂</div>
+              <h3>اربط حساب Google للبدء</h3>
+              <p class="muted">بعد ربط حسابك وقناتك على يوتيوب، ستظهر هنا جميع ملفات الفيديو من Google Drive جاهزة للرفع والنشر التلقائي.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Left Sidebar: Connected Channel, Auto-Publisher & Logs -->
+      <aside class="side-col">
+        <!-- Connected Channel Card -->
+        <div class="card channel-card">
+          <div class="card-header">
+            <h3>📺 قناة يوتيوب المتصلة</h3>
+          </div>
+          <div id="channelCardBody" class="channel-empty">
+            <p class="muted small">لم يتم ربط قناة يوتيوب بعد. اضغط على «ربط حساب Google وقناة YouTube» بالأعلى.</p>
+          </div>
+        </div>
+
+        <!-- Auto-Publisher Engine Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>⚡ المحرك التلقائي للنشر</h3>
+          </div>
+
+          <div class="auto-control">
+            <label class="switch-row">
+              <span>تفعيل الفحص والرفع التلقائي</span>
+              <input id="autoPublishToggle" type="checkbox" disabled />
+            </label>
+            <div id="countdownBox" class="countdown hidden">
+              الفحص التلقائي القادم خلال: <strong id="countdownTimer">15:00</strong>
+            </div>
+          </div>
+
+          <div class="form-stack compact">
+            <div class="field">
+              <label for="intervalSelect">فترة الفحص التلقائي</label>
+              <select id="intervalSelect">
+                <option value="5">كل 5 دقائق</option>
+                <option value="15" selected>كل 15 دقيقة</option>
+                <option value="30">كل 30 دقيقة</option>
+                <option value="60">كل ساعة</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="defaultPrivacySelect">الخصوصية الافتراضية على يوتيوب</label>
+              <select id="defaultPrivacySelect">
+                <option value="private" selected>خاص — Private (للمراجعة أولاً)</option>
+                <option value="unlisted">غير مدرج — Unlisted</option>
+                <option value="public">عام مباشرة — Public</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="chunkSizeSelect">حجم مقطع الرفع (للفيديوهات الكبيرة)</label>
+              <select id="chunkSizeSelect">
+                <option value="4">4 MB لكل مقطع (اتصال بطيء)</option>
+                <option value="8" selected>8 MB لكل مقطع (موصى به)</option>
+                <option value="12">12 MB لكل مقطع (اتصال سريع)</option>
+              </select>
+            </div>
+
+            <label class="check-row">
+              <input id="moveToPublishedCheck" type="checkbox" checked />
+              <span>نقل الفيديو تلقائياً إلى <code>YouTube_Published</code> بعد النشر</span>
+            </label>
+
+            <label class="check-row">
+              <input id="attachThumbnailCheck" type="checkbox" checked />
+              <span>رفع الصورة المصغرة تلقائياً (إذا وجدت بنفس الاسم)</span>
+            </label>
+
+            <label class="check-row">
+              <input id="logToSheetCheck" type="checkbox" checked />
+              <span>تسجيل رابط يوتيوب في جدول Google Sheets تلقائياً</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Live Activity Log -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📜 سجل العمليات المباشر</h3>
+            <button id="clearLogsBtn" class="btn btn-ghost btn-xs" type="button">مسح</button>
+          </div>
+          <div id="activityLog" class="log-list">
+            <div class="log-item log-info">
+              <span class="log-time">--:--</span>
+              <span>الأداة جاهزة — بانتظار ربط حساب Google وقناة YouTube.</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

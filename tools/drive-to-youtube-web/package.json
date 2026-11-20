@@ -1,0 +1,14 @@
+{
+  "name": "drive-to-youtube-studio",
+  "version": "1.0.0",
+  "description": "Arabic web studio to connect Google Drive and YouTube via OAuth and auto-publish videos with chunked resumable uploads.",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "test": "node --test tests/app.test.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
