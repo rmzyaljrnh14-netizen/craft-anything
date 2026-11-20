@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createAppServer } = require('../server');
+const { createAppServer } = require('../dev-server');
 const ytUtils = require('../lib/youtube-utils');
 const session = require('../lib/session');
 const googleApi = require('../lib/google-api');

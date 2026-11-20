@@ -4,8 +4,8 @@
   "description": "Arabic web studio to connect Google Drive and YouTube via OAuth and auto-publish videos with chunked resumable uploads.",
   "private": true,
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js",
+    "dev": "node dev-server.js",
+    "start": "node dev-server.js",
     "test": "node --test tests/app.test.js"
   },
   "engines": {
