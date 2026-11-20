@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive2Tube — النشر التلقائي من قوقل درايف إلى يوتيوب</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card: #121826;
+      --card2: #182133;
+      --border: #243047;
+      --text: #f3f6fc;
+      --muted: #94a3b8;
+      --primary: #e11d48;
+      --primary-hover: #be123c;
+      --success: #10b981;
+      --info: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .header, .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1, h2, h3 { margin: 0 0 4px; }
+    .muted { color: var(--muted); font-size: 0.88rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .between { justify-content: space-between; }
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.5); color: #6ee7b7; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    .tab.active { background: rgba(225, 29, 72, 0.2); border-color: var(--primary); }
+    .video {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: inherit;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .full { grid-column: 1 / -1; }
+    .status-box {
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #bae6fd;
+      display: none;
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--primary);
+    }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <h1>🎬 Drive2Tube — الناشر التلقائي</h1>
+        <div class="muted">متصل تلقائياً بحسابك في Google و Drive و YouTube بدون أي مفاتيح أو إعدادات معقدة</div>
+      </div>
+      <div class="row">
+        <span id="connPill" class="pill">⏳ جاري التحقق من الربط...</span>
+      </div>
+    </div>
+
+    <div id="statusBox" class="status-box"></div>
+
+    <!-- Connected Channel & 24/7 Auto-Publisher -->
+    <div class="card">
+      <div class="row between">
+        <div id="channelBox" class="row">
+          <div class="muted">جاري تحميل بيانات قناتك على يوتيوب...</div>
+        </div>
+        <div class="row">
+          <button id="toggleAutoBtn" class="btn" onclick="toggleAuto()">⚡ تفعيل النشر التلقائي (24/7)</button>
+          <button id="runNowBtn" class="btn btn-primary" onclick="runNow()">🚀 فحص ونشر الكل الآن</button>
+          <a id="sheetLink" class="btn" href="#" target="_blank">📊 فتح جدول المتابعة ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Videos List -->
+    <div class="card">
+      <div class="row between">
+        <div>
+          <h2>📂 فيديوهات Google Drive</h2>
+          <div class="muted">اختر المجلد، عدّل العنوان أو الخصوصية إذا رغبت، واضغط «رفع ليوتيوب»</div>
+        </div>
+        <button class="btn" onclick="loadVideos(currentFolder)">🔄 تحديث</button>
+      </div>
+
+      <div class="tabs">
+        <button class="btn tab active" id="tab-queue" onclick="switchFolder('queue')">📥 مجلد الانتظار (YouTube_Queue)</button>
+        <button class="btn tab" id="tab-root" onclick="switchFolder('root')">🏠 ملفاتي الرئيسية (My Drive)</button>
+        <button class="btn tab" id="tab-published" onclick="switchFolder('published')">✅ المنشورة (YouTube_Published)</button>
+      </div>
+
+      <div id="videosBox" class="muted">جاري قراءة الفيديوهات من Google Drive...</div>
+    </div>
+  </div>
+
+  <script>
+    var currentFolder = 'queue';
+    var autoEnabled = false;
+    var videosCache = [];
+
+    function showMsg(text) {
+      var box = document.getElementById('statusBox');
+      box.textContent = text;
+      box.style.display = 'block';
+    }
+
+    function esc(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function init() {
+      google.script.run
+        .withSuccessHandler(function (data) {
+          autoEnabled = !!data.autoEnabled;
+          document.getElementById('sheetLink').href = data.settings.spreadsheetUrl;
+          updateAutoBtn();
+
+          if (data.channel) {
+            document.getElementById('connPill').textContent = '✅ متصل: ' + data.channel.title;
+            document.getElementById('channelBox').innerHTML =
+              (data.channel.thumbnail ? '<img class="avatar" src="' + esc(data.channel.thumbnail) + '" />' : '') +
+              '<div><strong>' + esc(data.channel.title) + '</strong>' +
+              '<div class="muted">' + esc(data.email) + ' • المشتركون: ' + esc(data.channel.subscriberCount) + ' • الفيديوهات: ' + esc(data.channel.videoCount) + '</div></div>';
+          } else {
+            document.getElementById('connPill').textContent = '✅ متصل بحساب Google';
+            document.getElementById('channelBox').innerHTML =
+              '<div><strong>' + esc(data.email || 'حساب Google متصل') + '</strong><div class="muted">تأكد من وجود قناة يوتيوب منشأة على هذا الحساب</div></div>';
+          }
+          loadVideos('queue');
+        })
+        .withFailureHandler(function (err) {
+          showMsg('❌ خطأ في التحميل: ' + err.message);
+        })
+        .webGetDashboardState();
+    }
+
+    function updateAutoBtn() {
+      var btn = document.getElementById('toggleAutoBtn');
+      if (autoEnabled) {
+        btn.className = 'btn btn-success';
+        btn.textContent = '✅ النشر التلقائي نشط (اضغط للإيقاف)';
+      } else {
+        btn.className = 'btn';
+        btn.textContent = '⚡ تفعيل النشر التلقائي 24/7';
+      }
+    }
+
+    function toggleAuto() {
+      var target = !autoEnabled;
+      showMsg(target ? 'جاري تفعيل النشر التلقائي في الخلفية...' : 'جاري إيقاف النشر التلقائي...');
+      google.script.run
+        .withSuccessHandler(function (res) {
+          autoEnabled = !!res.autoEnabled;
+          updateAutoBtn();
+          showMsg(autoEnabled ? '✅ تم تفعيل النشر التلقائي كل ' + res.minutes + ' دقيقة — يعمل حتى لو أغلقت الجهاز!' : '⏹️ تم إيقاف النشر التلقائي.');
+        })
+        .withFailureHandler(function (err) {
+          showMsg('❌ ' + err.message);
+        })
+        .webToggleAutoTrigger(target);
+    }
+
+    function runNow() {
+      var btn = document.getElementById('runNowBtn');
+      btn.disabled = true;
+      showMsg('🚀 جاري فحص مجلد YouTube_Queue ونشر الفيديوهات الجاهزة...');
+      google.script.run
+        .withSuccessHandler(function () {
+          btn.disabled = false;
+          showMsg('✅ اكتملت دورة الفحص والنشر! يمكنك مراجعة النتائج أدناه أو في جدول المتابعة.');
+          loadVideos(currentFolder);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          showMsg('❌ ' + err.message);
+        })
+        .webRunAutoPublisherNow();
+    }
+
+    function switchFolder(key) {
+      currentFolder = key;
+      ['queue', 'root', 'published'].forEach(function (k) {
+        document.getElementById('tab-' + k).classList.toggle('active', k === key);
+      });
+      loadVideos(key);
+    }
+
+    function loadVideos(key) {
+      document.getElementById('videosBox').innerHTML = '<div class="muted">جاري قراءة ملفات الفيديو...</div>';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          videosCache = res.videos || [];
+          renderVideos();
+        })
+        .withFailureHandler(function (err) {
+          document.getElementById('videosBox').innerHTML = '<div style="color:#fca5a5;">❌ ' + esc(err.message) + '</div>';
+        })
+        .webListVideos(key);
+    }
+
+    function renderVideos() {
+      var box = document.getElementById('videosBox');
+      if (!videosCache.length) {
+        box.innerHTML = '<div class="muted">لا توجد فيديوهات في هذا المجلد حالياً. ضع أي فيديو MP4 في <strong>YouTube_Queue</strong> أو اختر تبويب «ملفاتي الرئيسية».</div>';
+        return;
+      }
+      box.innerHTML = videosCache.map(function (v, idx) {
+        return '<div class="video">' +
+          '<div class="row between">' +
+            '<div><strong>' + esc(v.suggestedTitle) + '</strong>' +
+            '<div class="muted">📁 ' + esc(v.name) + ' • 💾 ' + v.sizeMb + ' MB' +
+            (v.thumbnailName ? ' • 🖼️ ' + esc(v.thumbnailName) : '') + '</div></div>' +
+            '<div class="row">' +
+              '<a class="btn" href="' + esc(v.driveUrl) + '" target="_blank">عرض في Drive ↗</a>' +
+              '<button class="btn btn-primary" id="pub-' + idx + '" onclick="publishOne(' + idx + ')">🚀 رفع الآن ليوتيوب</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="grid2">' +
+            '<input id="title-' + idx + '" value="' + esc(v.suggestedTitle) + '" placeholder="عنوان الفيديو على يوتيوب" />' +
+            '<select id="priv-' + idx + '">' +
+              '<option value="private" selected>خاص (Private — للمراجعة أولاً)</option>' +
+              '<option value="unlisted">غير مدرج (Unlisted)</option>' +
+              '<option value="public">عام مباشرة (Public)</option>' +
+            '</select>' +
+            '<textarea class="full" id="desc-' + idx + '" rows="2" placeholder="وصف الفيديو (اختياري)..."></textarea>' +
+          '</div>' +
+          '<div id="res-' + idx + '" class="muted"></div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function publishOne(idx) {
+      var v = videosCache[idx];
+      var btn = document.getElementById('pub-' + idx);
+      var out = document.getElementById('res-' + idx);
+      btn.disabled = true;
+      btn.textContent = '⏳ جاري الرفع...';
+      out.textContent = 'جاري نقل الفيديو من Google Drive إلى YouTube...';
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          if (res.inProgress) {
+            btn.textContent = '▶️ استكمال الرفع (' + res.progressPct + '%)';
+            out.textContent = res.message;
+          } else {
+            btn.textContent = '✅ تم النشر';
+            out.innerHTML = '✅ تم الرفع بنجاح! <a style="color:#6ee7b7;" href="' + esc(res.youtubeUrl) + '" target="_blank">مشاهدة على يوتيوب ↗</a> • <a style="color:#7dd3fc;" href="' + esc(res.studioUrl) + '" target="_blank">تعديل في Studio ↗</a>';
+            showMsg('✅ تم رفع الفيديو "' + v.suggestedTitle + '" على قناتك بنجاح!');
+          }
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          btn.textContent = '🚀 إعادة المحاولة';
+          out.innerHTML = '<span style="color:#fca5a5;">❌ ' + esc(err.message) + '</span>';
+        })
+        .webPublishSingleVideo({
+          fileId: v.id,
+          title: document.getElementById('title-' + idx).value,
+          description: document.getElementById('desc-' + idx).value,
+          privacyStatus: document.getElementById('priv-' + idx).value,
+          moveToPublished: currentFolder === 'queue'
+        });
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -339,6 +339,55 @@ code {
   justify-content: center;
 }
 
+.connect-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 6px 0;
+}
+
+.compact-perms {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  text-align: center;
+}
+
+.btn-hero {
+  width: 100%;
+  max-width: 420px;
+  font-size: 1.04rem;
+  padding: 14px 22px;
+  box-shadow: 0 8px 24px rgba(225, 29, 72, 0.28);
+}
+
+.advanced-drawer {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.advanced-drawer summary {
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  user-select: none;
+}
+
+.advanced-body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .permissions-list {
   display: flex;
   flex-direction: column;

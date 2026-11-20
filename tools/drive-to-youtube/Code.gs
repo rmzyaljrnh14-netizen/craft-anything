@@ -1145,6 +1145,225 @@ function showUiAlert(title, message) {
   }
 }
 
+// ============================================================================
+// Built-in Web App UI (Zero Google Cloud / Zero Client ID — 1-Click Google Auth)
+// ============================================================================
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Drive2Tube — ربط قوقل درايف بيوتيوب تلقائياً')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function getConnectedYouTubeChannel(token) {
+  const url = 'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true';
+  const resp = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: { Authorization: 'Bearer ' + token },
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  const data = parseJsonSafe(resp.getContentText());
+  if (code >= 200 && code < 300 && data && Array.isArray(data.items) && data.items.length > 0) {
+    const item = data.items[0];
+    return {
+      id: item.id,
+      title: item.snippet ? item.snippet.title : 'قناة يوتيوب',
+      thumbnail:
+        item.snippet && item.snippet.thumbnails && item.snippet.thumbnails.default
+          ? item.snippet.thumbnails.default.url
+          : '',
+      subscriberCount: item.statistics ? item.statistics.subscriberCount || '0' : '0',
+      videoCount: item.statistics ? item.statistics.videoCount || '0' : '0'
+    };
+  }
+  return null;
+}
+
+function hasAutoPublishTrigger() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'runAutoPublisher') {
+        return true;
+      }
+    }
+  } catch (e) {
+    // Ignore when triggers API unavailable
+  }
+  return false;
+}
+
+function webGetDashboardState() {
+  const settings = loadSettings();
+  const token = ScriptApp.getOAuthToken();
+  let email = '';
+  try {
+    email = Session.getActiveUser().getEmail() || '';
+  } catch (e) {
+    email = '';
+  }
+
+  let channel = null;
+  try {
+    channel = getConnectedYouTubeChannel(token);
+  } catch (e) {
+    channel = null;
+  }
+
+  return {
+    ok: true,
+    email: email,
+    channel: channel,
+    autoEnabled: hasAutoPublishTrigger(),
+    settings: {
+      queueFolderId: settings.QUEUE_FOLDER_ID,
+      publishedFolderId: settings.PUBLISHED_FOLDER_ID,
+      failedFolderId: settings.FAILED_FOLDER_ID,
+      defaultPrivacy: settings.DEFAULT_PRIVACY,
+      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/' + DEFAULT_SPREADSHEET_ID + '/edit'
+    }
+  };
+}
+
+function webListVideos(folderKey) {
+  const settings = loadSettings();
+  const token = ScriptApp.getOAuthToken();
+  let folderId = settings.QUEUE_FOLDER_ID;
+  if (folderKey === 'root') {
+    folderId = 'root';
+  } else if (folderKey === 'published') {
+    folderId = settings.PUBLISHED_FOLDER_ID;
+  } else if (folderKey && folderKey !== 'queue') {
+    folderId = String(folderKey).trim();
+  }
+
+  const allFiles = listFolderFiles(folderId, token);
+  const videos = [];
+  const thumbnails = [];
+  for (let i = 0; i < allFiles.length; i++) {
+    if (isVideoFile(allFiles[i])) {
+      videos.push(allFiles[i]);
+    } else if (isThumbnailFile(allFiles[i])) {
+      thumbnails.push(allFiles[i]);
+    }
+  }
+
+  const out = [];
+  for (let i = 0; i < videos.length; i++) {
+    const v = videos[i];
+    const thumb = findMatchingThumbnail(v.name, thumbnails);
+    const sizeBytes = Number(v.size || 0);
+    out.push({
+      id: v.id,
+      name: v.name,
+      sizeBytes: sizeBytes,
+      sizeMb: Math.round((sizeBytes / (1024 * 1024)) * 100) / 100,
+      suggestedTitle: cleanVideoTitle(v.name),
+      driveUrl: 'https://drive.google.com/file/d/' + v.id + '/view',
+      thumbnailName: thumb ? thumb.name : ''
+    });
+  }
+
+  return { ok: true, folderId: folderId, videos: out };
+}
+
+function webPublishSingleVideo(payload) {
+  const settings = loadSettings();
+  const token = ScriptApp.getOAuthToken();
+  const fileId = String(payload.fileId || '').trim();
+  if (!fileId) {
+    throw new Error('معرف الفيديو مطلوب.');
+  }
+
+  const fileMeta = driveGetFileMetadata(fileId, token);
+  const metadata = buildYouTubeMetadata(
+    {
+      title: payload.title,
+      description: payload.description,
+      tags: payload.tags,
+      privacyStatus: payload.privacyStatus || settings.DEFAULT_PRIVACY,
+      publishAt: payload.publishAt || '',
+      categoryId: payload.categoryId || settings.DEFAULT_CATEGORY_ID,
+      madeForKids: Boolean(payload.madeForKids)
+    },
+    settings,
+    fileMeta.name
+  );
+
+  const result = uploadDriveFileToYouTubeResumable(
+    fileId,
+    metadata,
+    settings,
+    token,
+    Date.now(),
+    function () {}
+  );
+
+  if (result.status !== 'COMPLETED') {
+    return {
+      ok: true,
+      inProgress: true,
+      progressPct: result.progressPct,
+      message: 'تم رفع ' + result.progressPct + '% من الفيديو — اضغط مرة أخرى للاستئناف أو دع النشر التلقائي يكمله.'
+    };
+  }
+
+  const youtubeUrl = 'https://www.youtube.com/watch?v=' + result.videoId;
+  const studioUrl = 'https://studio.youtube.com/video/' + result.videoId + '/edit';
+
+  // Optional move to Published folder
+  if (payload.moveToPublished && settings.PUBLISHED_FOLDER_ID) {
+    const sourceParent = fileMeta.parents && fileMeta.parents.length ? fileMeta.parents[0] : '';
+    if (sourceParent !== settings.PUBLISHED_FOLDER_ID) {
+      try {
+        driveMoveFile(fileId, sourceParent, settings.PUBLISHED_FOLDER_ID, token);
+      } catch (e) {
+        appendLog('WARN', fileId, 'تم الرفع لكن تعذر نقل الملف: ' + e.message);
+      }
+    }
+  }
+
+  appendLog('INFO', fileId, 'تم النشر من واجهة الويب: ' + youtubeUrl);
+  return {
+    ok: true,
+    inProgress: false,
+    videoId: result.videoId,
+    youtubeUrl: youtubeUrl,
+    studioUrl: studioUrl
+  };
+}
+
+function webToggleAutoTrigger(enable) {
+  if (enable) {
+    const settings = loadSettings();
+    const minutes = Math.max(5, Number(settings.TRIGGER_INTERVAL_MIN) || 15);
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'runAutoPublisher') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+    const allowedMinutes = minutes <= 5 ? 5 : minutes <= 10 ? 10 : minutes <= 15 ? 15 : 30;
+    ScriptApp.newTrigger('runAutoPublisher').timeBased().everyMinutes(allowedMinutes).create();
+    return { ok: true, autoEnabled: true, minutes: allowedMinutes };
+  } else {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'runAutoPublisher') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+    return { ok: true, autoEnabled: false };
+  }
+}
+
+function webRunAutoPublisherNow() {
+  runAutoPublisher();
+  return { ok: true };
+}
+
 // Export for automated unit testing in Node.js (ignored in Google Apps Script V8)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -1173,6 +1392,11 @@ if (typeof module !== 'undefined' && module.exports) {
     extractApiError,
     uploadDriveFileToYouTubeResumable,
     syncDriveQueueToSheet,
-    runAutoPublisher
+    runAutoPublisher,
+    doGet,
+    webGetDashboardState,
+    webListVideos,
+    webPublishSingleVideo,
+    webToggleAutoTrigger
   };
 }

@@ -53,87 +53,78 @@
     <section id="setupPanel" class="card setup-card">
       <div class="card-header">
         <div>
-          <h2>🔗 ربط حساب Google وقناة YouTube</h2>
-          <p class="muted">اربط حسابك مرة واحدة لتصفح مجلدات Google Drive ورفع الفيديوهات تلقائياً إلى قناتك على YouTube.</p>
+          <h2>🔗 ربط حساب Google وقناة YouTube بضغطة واحدة</h2>
+          <p class="muted">سجّل دخولك بحساب Google لتظهر فيديوهات Drive وقناتك على YouTube جاهزة للنشر التلقائي مباشرة.</p>
         </div>
-        <button id="toggleSetupBtn" class="btn btn-ghost btn-sm hidden" type="button">إخفاء الإعدادات</button>
+        <button id="toggleSetupBtn" class="btn btn-ghost btn-sm hidden" type="button">إخفاء</button>
       </div>
 
-      <div class="setup-grid">
-        <!-- Step 1: OAuth Config -->
-        <div class="setup-step">
-          <div class="step-badge">الخطوة 1</div>
-          <h3>إعداد مفتاح Google OAuth (مرة واحدة)</h3>
-          <p class="muted small">
-            أنشئ <strong>OAuth Client ID</strong> من نوع <strong>Web Application</strong> في Google Cloud، وفعّل خدمتي Drive و YouTube، ثم أضف الرابطين أدناه:
-          </p>
-
-          <div class="quick-links">
-            <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener" class="link-chip">1. تفعيل Drive API ↗</a>
-            <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener" class="link-chip">2. تفعيل YouTube API v3 ↗</a>
-            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="link-chip">3. إنشاء OAuth Client ID ↗</a>
-          </div>
-
-          <div class="copy-row">
-            <label>Authorized JavaScript Origin:</label>
-            <div class="copy-box">
-              <code id="originDisplay">...</code>
-              <button class="btn btn-xs btn-secondary copy-btn" data-copy="originDisplay" type="button">نسخ</button>
-            </div>
-          </div>
-
-          <div class="copy-row">
-            <label>Authorized Redirect URI:</label>
-            <div class="copy-box">
-              <code id="redirectUriDisplay">...</code>
-              <button class="btn btn-xs btn-secondary copy-btn" data-copy="redirectUriDisplay" type="button">نسخ</button>
-            </div>
-          </div>
-
-          <form id="oauthConfigForm" class="form-stack">
-            <div class="field">
-              <label for="clientIdInput">Google OAuth Client ID <span class="req">*</span></label>
-              <input id="clientIdInput" type="text" dir="ltr" placeholder="xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="clientSecretInput">Google OAuth Client Secret <span class="muted small">(اختياري — للتجديد التلقائي الدائم)</span></label>
-              <input id="clientSecretInput" type="password" dir="ltr" placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-            </div>
-            <div class="form-actions">
-              <button id="saveConfigBtn" class="btn btn-secondary" type="submit">💾 حفظ المفتاح</button>
-              <span id="configStatusHint" class="muted small"></span>
-            </div>
-          </form>
+      <div class="connect-hero">
+        <div class="permissions-list compact-perms">
+          <div class="perm-item">✅ ربط حساب Google و Google Drive تلقائياً</div>
+          <div class="perm-item">✅ ربط قناتك على YouTube والنشر التلقائي</div>
+          <div class="perm-item">✅ حفظ سجل الفيديوهات المنشورة في Google Sheets</div>
         </div>
 
-        <!-- Step 2: Connect Button -->
-        <div class="setup-step connect-box">
-          <div class="step-badge step-badge-red">الخطوة 2</div>
-          <h3>تسجيل الدخول وربط القناة</h3>
-          <p class="muted small">
-            اضغط الزر أدناه لاختيار حسابك في Google ومنح الأداة صلاحية قراءة فيديوهات <strong>Google Drive</strong> ورفعها على قناتك في <strong>YouTube</strong>.
-          </p>
+        <button id="connectGoogleBtn" class="btn btn-primary btn-lg btn-hero" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#fff" d="M21.35 11.1h-9.18v2.92h5.27c-.23 1.24-.92 2.29-1.96 2.99v2.48h3.17c1.86-1.71 2.93-4.23 2.93-7.21 0-.4-.04-.79-.23-1.18z"/>
+            <path fill="#fff" d="M12.17 22c2.65 0 4.88-.88 6.51-2.38l-3.17-2.48c-.88.59-2 1-3.34 1-2.57 0-4.74-1.73-5.52-4.06H3.38v2.56C5 19.86 8.33 22 12.17 22z"/>
+            <path fill="#fff" d="M6.65 14.08a5.88 5.88 0 0 1 0-3.74V7.78H3.38a9.84 9.84 0 0 0 0 8.86l3.27-2.56z"/>
+            <path fill="#fff" d="M12.17 6.28c1.44 0 2.74.5 3.76 1.47l2.82-2.82C17.04 3.33 14.82 2.4 12.17 2.4 8.33 2.4 5 4.54 3.38 7.78l3.27 2.56c.78-2.33 2.95-4.06 5.52-4.06z"/>
+          </svg>
+          <span>تسجيل الدخول بحساب Google وربط كل شيء</span>
+        </button>
 
-          <div class="permissions-list">
-            <div class="perm-item">✅ قراءة ونقل ملفات الفيديو من مجلدات Google Drive</div>
-            <div class="perm-item">✅ رفع الفيديوهات والصور المصغرة على قناتك في YouTube</div>
-            <div class="perm-item">✅ تسجيل روابط النشر تلقائياً في جدول Google Sheets</div>
+        <p id="connectModeHint" class="muted small center">
+          سيتم توجيهك لشاشة تسجيل الدخول الرسمية من Google لاختيار حسابك وقناتك.
+        </p>
+
+        <details id="advancedOAuthDetails" class="advanced-drawer">
+          <summary>⚙️ إعداد مفتاح Google OAuth (يُطلب مرة واحدة فقط إذا لم يُضف في Vercel)</summary>
+          <div class="advanced-body">
+            <p class="muted small">
+              تفرض Google إضافة <strong>Client ID</strong> خاص بالتطبيق مرة واحدة فقط. إذا أضفت <code>GOOGLE_CLIENT_ID</code> و <code>GOOGLE_CLIENT_SECRET</code> في Vercel فسيختفي هذا القسم نهائياً.
+            </p>
+
+            <div class="quick-links">
+              <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener" class="link-chip">1. تفعيل Drive API ↗</a>
+              <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener" class="link-chip">2. تفعيل YouTube API v3 ↗</a>
+              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="link-chip">3. إنشاء OAuth Client ID ↗</a>
+            </div>
+
+            <div class="copy-row">
+              <label>Authorized JavaScript Origin:</label>
+              <div class="copy-box">
+                <code id="originDisplay">...</code>
+                <button class="btn btn-xs btn-secondary copy-btn" data-copy="originDisplay" type="button">نسخ</button>
+              </div>
+            </div>
+
+            <div class="copy-row">
+              <label>Authorized Redirect URI:</label>
+              <div class="copy-box">
+                <code id="redirectUriDisplay">...</code>
+                <button class="btn btn-xs btn-secondary copy-btn" data-copy="redirectUriDisplay" type="button">نسخ</button>
+              </div>
+            </div>
+
+            <form id="oauthConfigForm" class="form-stack">
+              <div class="field">
+                <label for="clientIdInput">Google OAuth Client ID <span class="req">*</span></label>
+                <input id="clientIdInput" type="text" dir="ltr" placeholder="xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="clientSecretInput">Google OAuth Client Secret <span class="muted small">(اختياري — للتجديد التلقائي الدائم)</span></label>
+                <input id="clientSecretInput" type="password" dir="ltr" placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              </div>
+              <div class="form-actions">
+                <button id="saveConfigBtn" class="btn btn-secondary" type="submit">💾 حفظ المفتاح</button>
+                <span id="configStatusHint" class="muted small"></span>
+              </div>
+            </form>
           </div>
-
-          <button id="connectGoogleBtn" class="btn btn-primary btn-lg btn-block" type="button">
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="#fff" d="M21.35 11.1h-9.18v2.92h5.27c-.23 1.24-.92 2.29-1.96 2.99v2.48h3.17c1.86-1.71 2.93-4.23 2.93-7.21 0-.4-.04-.79-.23-1.18z"/>
-              <path fill="#fff" d="M12.17 22c2.65 0 4.88-.88 6.51-2.38l-3.17-2.48c-.88.59-2 1-3.34 1-2.57 0-4.74-1.73-5.52-4.06H3.38v2.56C5 19.86 8.33 22 12.17 22z"/>
-              <path fill="#fff" d="M6.65 14.08a5.88 5.88 0 0 1 0-3.74V7.78H3.38a9.84 9.84 0 0 0 0 8.86l3.27-2.56z"/>
-              <path fill="#fff" d="M12.17 6.28c1.44 0 2.74.5 3.76 1.47l2.82-2.82C17.04 3.33 14.82 2.4 12.17 2.4 8.33 2.4 5 4.54 3.38 7.78l3.27 2.56c.78-2.33 2.95-4.06 5.52-4.06z"/>
-            </svg>
-            <span>ربط حساب Google وقناة YouTube</span>
-          </button>
-
-          <p id="connectModeHint" class="muted small center">
-            يدعم الربط السريع (بـ Client ID فقط) أو الربط الدائم بالتجديد التلقائي (مع Client Secret).
-          </p>
-        </div>
+        </details>
       </div>
     </section>
 

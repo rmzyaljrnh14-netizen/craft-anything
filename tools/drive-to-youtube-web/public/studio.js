@@ -50,6 +50,7 @@
     configStatusHint: document.getElementById('configStatusHint'),
     connectGoogleBtn: document.getElementById('connectGoogleBtn'),
     connectModeHint: document.getElementById('connectModeHint'),
+    advancedOAuthDetails: document.getElementById('advancedOAuthDetails'),
     refreshVideosBtn: document.getElementById('refreshVideosBtn'),
     publishAllBtn: document.getElementById('publishAllBtn'),
     folderTabs: document.getElementById('folderTabs'),
@@ -201,11 +202,12 @@
       }
 
       if (state.health.oauth.fromEnv) {
-        el.configStatusHint.textContent = '✅ مفاتيح OAuth مضبوطة من إعدادات السيرفر (جاهز للربط المباشر).';
+        el.configStatusHint.textContent = '✅ مفاتيح OAuth مضبوطة من السيرفر (جاهز للربط بضغطة واحدة).';
+        if (el.advancedOAuthDetails) el.advancedOAuthDetails.classList.add('hidden');
       } else if (state.health.oauth.hasClientSecret) {
-        el.configStatusHint.textContent = '✅ تم حفظ Client ID و Client Secret (الربط الدائم بالتجديد التلقائي جاهز).';
+        el.configStatusHint.textContent = '✅ تم حفظ Client ID و Client Secret (جاهز للربط).';
       } else if (savedClientId) {
-        el.configStatusHint.textContent = '✅ تم حفظ Client ID (الربط السريع عبر نافذة Google جاهز).';
+        el.configStatusHint.textContent = '✅ تم حفظ Client ID (جاهز للربط).';
       }
 
       state.currentFolderId = state.health.defaults.QUEUE_FOLDER_ID;
@@ -358,8 +360,9 @@
 
     if (!clientId) {
       el.setupPanel.classList.remove('hidden');
+      if (el.advancedOAuthDetails) el.advancedOAuthDetails.open = true;
       el.clientIdInput.focus();
-      showAlert('يرجى إدخال Google OAuth Client ID في الخطوة 1 أولاً ثم الضغط على الربط.', 'info');
+      showAlert('تحتاج Google إلى إضافة Client ID مرة واحدة فقط لتفعيل زر تسجيل الدخول على هذا الرابط — افتح القسم بالأسفل وأدخله ثم اضغط الربط.', 'info');
       return;
     }
 
