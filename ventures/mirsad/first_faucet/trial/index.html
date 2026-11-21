@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+  <meta name="format-detection" content="telephone=no"><title>تجربة أول دفعة | Final Autoclaim</title>
+  <!--POLICY--><!--STYLE-->
+</head>
+<body>
+<header><div class="wrap top"><div class="brand"><i aria-hidden="true">م</i> مِرصد <small>دفتر الصنبور الأول</small></div><span class="pill">خاص في متصفّحك</span></div></header>
+<main class="wrap">
+  <section class="intro"><span class="eyebrow">دفتر التجربة 01 / <bdi>Final Autoclaim</bdi></span>
+    <h1>هل وصلت أول دفعة؟</h1><p>قبل أن تقضي نصف ساعة في الصنبور، اعرف كم دقيقة تغطيها نقاطك. بعد التجربة، دوّن ما وصل فعلًا، لا ما عرضه عدّاد الموقع.</p>
+    <div class="rail" aria-label="مراحل التجربة"><span id="step-setup">01 · افحص النقاط</span><span id="step-watch">02 · تابع الوقت</span><span id="step-review">03 · راجع الوارد</span></div>
+  </section>
+  <div class="layout"><section class="card work" aria-labelledby="phase-title">
+    <span class="eyebrow" id="phase-label">الخطوة 01 / قبل التشغيل</span><h2 id="phase-title">هل يكفي رصيد DUTCHY؟</h2>
+    <div id="setup">
+      <p>إن كنت مؤهلًا ولديك حساب واحد، افتح <a class="inline-link" href="https://autofaucet.dutchycorp.space/dashboard.php" target="_blank" rel="noopener noreferrer">لوحة الصنبور الرسمية ↗</a> ثم <bdi>Start Autoclaim</bdi> واختر <bdi>Coin Mode</bdi>. انقل رصيد النقاط <strong>والتكلفة الإجمالية لدورة واحدة</strong> كما يعرضها إعدادك. لا شراء ولا إيداع.</p>
+      <div class="fields"><label>الرصيد المتاح (DUTCHY)<input id="balance" inputmode="decimal" maxlength="32" autocomplete="off" dir="ltr"></label>
+      <label>تكلفة الدورة (DUTCHY)<input id="cost" inputmode="decimal" maxlength="32" autocomplete="off" dir="ltr"></label></div>
+      <p class="message" id="plan" role="status">بانتظار الرقمين من شاشتك؛ لا توجد أرقام مفترضة.</p>
+      <button type="button" id="begin" disabled>ابدأ مؤقّت التجربة محليًا</button>
+      <small class="hint">يشغّل هذا الزر الساعة فقط. بعد ذلك فعّل الميزة وأكمل التحقق بنفسك على الموقع. لا يعطي الدفتر أي أمر للصنبور.</small>
+    </div>
+    <div id="watching" hidden><p>اترك تبويب الصنبور مفتوحًا. وضع <bdi>In-Page</bdi> يتطلب بقاءه في المقدمة؛ لا حاجة للرجوع إلى هنا كل خمس دقائق. التوقيت ليس عدد مطالبات ناجحة.</p>
+      <button id="finish" type="button">أنهِ قياس الوقت وراجع النتيجة</button></div>
+    <div id="review" hidden><p id="review-prompt"></p>
+      <button type="button" id="pending" class="secondary">رأيت طلب سحب معلّقًا · دوّن الحالة فقط</button>
+      <div class="receipt"><h3>دوّن واردًا مكتملًا واحدًا</h3><p>من سجل الوارد في FaucetPay: اكتب رمز العملة والكمية الصافية لهذه الدفعة فقط. لا تدخل رقم المعاملة أو بريدًا أو عنوان محفظة.</p>
+        <div class="fields"><label>رمز العملة<input id="coin" placeholder="مثل LTC" maxlength="10" autocomplete="off" spellcheck="false" dir="ltr"></label><label>الكمية المستلَمة<input id="quantity" inputmode="decimal" maxlength="32" autocomplete="off" dir="ltr"></label></div>
+        <label class="check"><input type="checkbox" id="confirm-receipt"> رأيت هذه الدفعة من Final Autoclaim مكتملة في FaucetPay، وليست نقاطًا أو طلبًا معلّقًا.</label>
+        <button id="note" type="button">ثبّت ملاحظتي عن الوارد</button>
+      </div>
+    </div>
+    <div id="noted" hidden><strong class="amount" id="noted-amount" dir="ltr"></strong><p>هذا قيدٌ منك لدفعة واحدة؛ لم تتحقق الأداة من محفظة أو تنفّذ تحويلًا.</p><dl class="measure"><div><dt>وقت نافذة التجربة المحتسب</dt><dd id="elapsed"></dd></div><div><dt>من بدء المؤقّت حتى تدوين الوارد</dt><dd id="lag"></dd></div></dl><small>وقت التدوين قد يكون بعد التسوية. أيٌّ من الزمنين ليس أجرًا بالساعة ولا تنبؤًا بدخل الأيام المقبلة.</small></div>
+    <p class="error" id="error" role="alert"></p>
+  </section><aside class="meter"><span class="eyebrow">متابعة محلية · لا اتصال بالحساب</span><h2>المتبقّي من النافذة</h2><div class="clock" dir="ltr" id="clock">—</div><p id="meter-hint">المؤقّت متوقف. لا تُفتح تبويبات أو إعلانات تلقائيًا.</p>
+    <dl class="measure"><div><dt>ميزانية الوقت</dt><dd id="budget">حتى 30 دقيقة</dd></div><div><dt>حالة الوارد</dt><dd id="evidence">لم يبدأ الاختبار</dd></div></dl>
+  </aside></div>
+  <section class="card"><h2>حسابك يبقى على الموقع الرسمي</h2><div class="links"><a href="https://autofaucet.dutchycorp.space/dashboard.php" target="_blank" rel="noopener noreferrer">لوحة الصنبور ↗</a><a href="https://autofaucet.dutchycorp.space/signup.php" target="_blank" rel="noopener noreferrer">التسجيل الشخصي ↗</a><a href="https://final-autoclaim.gitbook.io/docs/academy/how-to-launch-the-autoclaim" target="_blank" rel="noopener noreferrer">دليل الميزة ↗</a><a href="https://autofaucet.dutchycorp.space/terms.php" target="_blank" rel="noopener noreferrer">الشروط ↗</a></div>
+    <p class="hint">النسخة 1 · راجعنا الدليل في 18 نوفمبر 2026: دورة رسمية كل 5 دقائق، وبحدّ تجريبي نضعه نحن قدره 6 دورات. يفترض الحساب ثبات التكلفة والرصيد المتاح عند البداية. إذا اختلفت شاشة الموقع أو مدة الدورة فلا تعتمد على التقدير. انتهاء المؤقّت لا يوقف الصنبور؛ أوقفه بنفسك إن كان يعمل.</p></section>
+  <section class="card saved"><h2>أكمل لاحقًا من دون مشاركة بياناتك</h2><p id="storage-hint">بعد البدء نحفظ تجربة واحدة في هذا التبويب لتصمد أمام تحديث الصفحة. قبل إغلاقه نزّل سجلّك الخاص إذا أردت استئناف التجربة لاحقًا. ليس مشفّرًا.</p>
+    <div class="controls"><a class="download" id="export" download="final-autoclaim-note.json" hidden>نزّل سجلّ التجربة</a><label class="file">استعد سجلًا محفوظًا <input id="import" type="file" accept="application/json,.json"></label><button type="button" class="textbtn" id="reset" disabled>امسح تجربتي</button></div>
+    <div id="reset-choice" hidden><p>سيُمسح القيد من هذا التبويب. نزّل نسخة أولًا إن أردت الاحتفاظ به.</p><button type="button" class="secondary" id="keep">احتفظ به</button> <button type="button" id="discard">تأكيد المسح</button></div><p id="file-status" role="status"></p>
+  </section>
+  <noscript><p>الحاسبة تحتاج JavaScript محليًا فقط. روابط المشغّل أعلاه لا تحتاج إلى الدفتر.</p></noscript>
+</main><footer><div class="wrap">دفتر شخصي واحد · بلا إضافة للمتصفح أو صلاحيات على أي موقع · لا ترسل سجلّك إلينا.</div></footer>
+<!--MODEL--><!--UI-->
+</body></html>
