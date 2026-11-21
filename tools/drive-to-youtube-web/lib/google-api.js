@@ -242,6 +242,63 @@ async function listDriveFolderContents(accessToken, folderId, fetchImpl = fetch)
   return { videos, thumbnails, folders };
 }
 
+async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl = fetch) {
+  const excluded = new Set((excludeParentIds || []).filter(Boolean));
+  const q = "mimeType contains 'video/' and trashed = false";
+  const url =
+    'https://www.googleapis.com/drive/v3/files?' +
+    `q=${encodeURIComponent(q)}` +
+    `&fields=${encodeURIComponent('files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink,parents)')}` +
+    `&orderBy=${encodeURIComponent('modifiedTime desc')}` +
+    '&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true';
+
+  const resp = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const { parsed, text } = await parseJsonResponse(resp);
+  if (!resp.ok) {
+    throw new Error(`فشل البحث عن الفيديوهات في Drive (${resp.status}): ${extractApiError(parsed, text)}`);
+  }
+
+  const allVideos = (parsed && Array.isArray(parsed.files) ? parsed.files : []).filter(isVideoFile);
+  const videos = allVideos.filter((v) => {
+    const parents = Array.isArray(v.parents) ? v.parents : [];
+    return !parents.some((p) => excluded.has(p));
+  });
+
+  // Collect unique parent folders for thumbnails + folder names (limit to first 10 parents for speed)
+  const parentIds = [];
+  const seenParents = new Set();
+  for (const v of videos) {
+    const pid = v.parents && v.parents[0];
+    if (pid && !seenParents.has(pid)) {
+      seenParents.add(pid);
+      parentIds.push(pid);
+      if (parentIds.length >= 10) break;
+    }
+  }
+
+  const folderNamesById = {};
+  const thumbnailsByParent = {};
+
+  await Promise.all(
+    parentIds.map(async (pid) => {
+      try {
+        const [meta, contents] = await Promise.all([
+          getDriveFileMetadata(accessToken, pid, fetchImpl),
+          listDriveFolderContents(accessToken, pid, fetchImpl)
+        ]);
+        if (meta && meta.name) folderNamesById[pid] = meta.name;
+        thumbnailsByParent[pid] = contents.thumbnails || [];
+      } catch {
+        // Ignore individual parent lookup failures
+      }
+    })
+  );
+
+  return { videos, folderNamesById, thumbnailsByParent };
+}
+
 async function getDriveFileMetadata(accessToken, fileId, fetchImpl = fetch) {
   const url =
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}` +
@@ -434,6 +491,7 @@ module.exports = {
   resolveAccessToken,
   fetchGoogleUserAndChannel,
   listDriveFolderContents,
+  listAllDriveVideos,
   getDriveFileMetadata,
   downloadDriveRange,
   moveDriveFile,

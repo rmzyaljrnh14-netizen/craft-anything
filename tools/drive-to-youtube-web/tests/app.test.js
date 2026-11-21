@@ -32,6 +32,14 @@ test('youtube-utils sanitizes Arabic titles, tags, publishAt, and aligns chunks'
   assert.equal(meta.status.publishAt, '2026-12-10T15:00:00.000Z');
   assert.equal(ytUtils.computeChunkSizeBytes(8), 8 * 1024 * 1024);
   assert.equal(ytUtils.computeChunkSizeBytes(8) % (256 * 1024), 0);
+
+  // Smart thumbnail matching inside episode folders (Arabic "الصورة المصغرة")
+  const epThumb = ytUtils.findMatchingThumbnail(
+    '01 — ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟ — نقش 04.mp4',
+    [{ id: 't_ep4', name: '03 — ٧ أيام بلا إنترنت — الصورة المصغرة.jpg', mimeType: 'image/jpeg' }],
+    { allowFolderFallback: true, singleVideoInFolder: true }
+  );
+  assert.equal(epThumb.id, 't_ep4');
 });
 
 test('session encryption round-trips payloads and rejects tampered tokens', () => {

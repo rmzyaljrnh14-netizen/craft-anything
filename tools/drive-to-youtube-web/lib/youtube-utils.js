@@ -29,14 +29,34 @@ function stripExtension(fileName) {
   return idx <= 0 ? str : str.slice(0, idx);
 }
 
-function findMatchingThumbnail(videoFileName, thumbnailFiles) {
+function findMatchingThumbnail(videoFileName, thumbnailFiles, opts = {}) {
   if (!videoFileName || !Array.isArray(thumbnailFiles) || thumbnailFiles.length === 0) {
     return null;
   }
   const base = stripExtension(videoFileName).trim().toLowerCase();
-  return (
-    thumbnailFiles.find((img) => stripExtension(img.name).trim().toLowerCase() === base) || null
+  const exact = thumbnailFiles.find(
+    (img) => stripExtension(img.name).trim().toLowerCase() === base
   );
+  if (exact) return exact;
+
+  // For episode folders (e.g. "01 — video.mp4" + "03 — الصورة المصغرة.jpg"):
+  // match an explicit thumbnail-named image or the sole image when there is 1 video in the folder
+  if (opts.allowFolderFallback) {
+    const namedThumb = thumbnailFiles.find((img) => {
+      const n = String(img.name || '').toLowerCase();
+      return (
+        n.includes('thumb') ||
+        n.includes('مصغرة') ||
+        n.includes('مصغره') ||
+        n.includes('غلاف')
+      );
+    });
+    if (namedThumb) return namedThumb;
+    if (thumbnailFiles.length === 1 && opts.singleVideoInFolder) {
+      return thumbnailFiles[0];
+    }
+  }
+  return null;
 }
 
 function sanitizeYouTubeText(text, maxLength) {

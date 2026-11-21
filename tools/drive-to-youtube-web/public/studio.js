@@ -15,8 +15,8 @@
     connectionMode: null,
     user: null,
     channel: null,
-    currentFolderId: '',
-    currentPreset: 'queue',
+    currentFolderId: 'all',
+    currentPreset: 'all',
     videos: [],
     folders: [],
     videoEdits: {},
@@ -217,7 +217,7 @@
         el.configStatusHint.textContent = '✅ تم حفظ Client ID (جاهز للربط).';
       }
 
-      state.currentFolderId = state.health.defaults.QUEUE_FOLDER_ID;
+      state.currentFolderId = 'all';
       await refreshSession();
     } catch (err) {
       showAlert('تعذر الاتصال بالخادم: ' + err.message, 'error');
@@ -626,6 +626,7 @@
             <div class="video-title-wrap">
               <h4 class="video-title">${escapeHtml(meta.title)}</h4>
               <div class="video-meta-line">
+                ${v.folderName ? `<span>📂 ${escapeHtml(v.folderName)}</span>` : ''}
                 <span>📁 ${escapeHtml(v.name)}</span>
                 <span>💾 ${v.sizeMb} MB</span>
                 <a href="${escapeHtml(v.webViewLink)}" target="_blank" rel="noopener" style="color:#7dd3fc;text-decoration:none;">عرض في Drive ↗</a>
@@ -947,7 +948,8 @@
       const preset = btn.dataset.folderPreset;
       state.currentPreset = preset;
 
-      let targetId = state.health.defaults.QUEUE_FOLDER_ID;
+      let targetId = 'all';
+      if (preset === 'queue') targetId = state.health.defaults.QUEUE_FOLDER_ID;
       if (preset === 'root') targetId = 'root';
       if (preset === 'published') targetId = state.health.defaults.PUBLISHED_FOLDER_ID;
 
