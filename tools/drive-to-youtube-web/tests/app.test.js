@@ -378,9 +378,9 @@ On Maryam's phone screen, her son's plane is frozen over the sea.
   try {
     const rStream = await fetch(`${baseUrl}/api/drive/stream?fileId=abc`);
     assert.equal(rStream.status, 401);
-    const rInit = await fetch(`${baseUrl}/api/upload/init-direct`, { method: 'POST', body: '{}' });
+    const rInit = await fetch(`${baseUrl}/api/upload/init`, { method: 'POST', body: '{"directUpload":true}' });
     assert.equal(rInit.status, 401);
-    const rChunk = await fetch(`${baseUrl}/api/upload/chunk-direct`, { method: 'POST', body: 'x' });
+    const rChunk = await fetch(`${baseUrl}/api/upload/chunk`, { method: 'POST', headers: { 'x-upload-uri': 'https://www.googleapis.com/upload/youtube/v3/videos' }, body: 'x' });
     assert.equal(rChunk.status, 401);
   } finally {
     await new Promise((resolve) => server.close(resolve));

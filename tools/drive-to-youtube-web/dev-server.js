@@ -16,9 +16,7 @@ const API_ROUTES = {
   '/api/drive/videos': require('./api/drive/videos'),
   '/api/drive/stream': require('./api/drive/stream'),
   '/api/upload/init': require('./api/upload/init'),
-  '/api/upload/init-direct': require('./api/upload/init-direct'),
   '/api/upload/chunk': require('./api/upload/chunk'),
-  '/api/upload/chunk-direct': require('./api/upload/chunk-direct'),
   '/api/upload/complete': require('./api/upload/complete')
 };
 

@@ -1813,10 +1813,11 @@
     el.clipperUploadPct.textContent = '5%';
 
     try {
-      const initRes = await apiFetch('/api/upload/init-direct', {
+      const initRes = await apiFetch('/api/upload/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          directUpload: true,
           fileName: 'viral-short-9x16.webm',
           fileSize: totalSize,
           mimeType,
@@ -1838,7 +1839,7 @@
       while (offset < totalSize) {
         const end = Math.min(offset + chunkSize - 1, totalSize - 1);
         const slice = blob.slice(offset, end + 1);
-        const resp = await fetch('/api/upload/chunk-direct', {
+        const resp = await fetch('/api/upload/chunk', {
           method: 'POST',
           headers: authHeaders({
             'Content-Type': 'application/octet-stream',
