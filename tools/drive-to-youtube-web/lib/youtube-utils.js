@@ -400,6 +400,321 @@ function resolveVideoMimeType(mimeType, fileName) {
   return 'video/mp4';
 }
 
+function isGrowthPackFile(file) {
+  if (!file || !file.name) return false;
+  const lower = String(file.name).toLowerCase();
+  if (!lower.endsWith('.txt')) return false;
+  return (
+    lower.includes('الانتشار') ||
+    lower.includes('الفيروسي') ||
+    lower.includes('شورتس') ||
+    lower.includes('growth') ||
+    lower.includes('viral') ||
+    lower.includes('shorts')
+  );
+}
+
+function detectSubtitleLanguage(fileName) {
+  const n = String(fileName || '').toLowerCase();
+  if (
+    n.includes('english') ||
+    n.includes('(en)') ||
+    n.includes('.en.') ||
+    n.includes('_en.') ||
+    n.includes('-en.') ||
+    n.includes('إنجليز') ||
+    n.includes('انجليز')
+  ) {
+    return { language: 'en', label: 'English' };
+  }
+  if (n.includes('french') || n.includes('(fr)') || n.includes('.fr.') || n.includes('فرنس')) {
+    return { language: 'fr', label: 'Français' };
+  }
+  if (n.includes('spanish') || n.includes('(es)') || n.includes('.es.') || n.includes('إسبان')) {
+    return { language: 'es', label: 'Español' };
+  }
+  if (n.includes('turkish') || n.includes('(tr)') || n.includes('.tr.') || n.includes('ترك')) {
+    return { language: 'tr', label: 'Türkçe' };
+  }
+  return { language: 'ar', label: 'العربية' };
+}
+
+function findAllMatchingSubtitles(videoFileName, subtitleFiles, opts = {}) {
+  if (!videoFileName || !Array.isArray(subtitleFiles) || subtitleFiles.length === 0) {
+    return [];
+  }
+  const base = stripExtension(videoFileName).trim().toLowerCase();
+  const matched = [];
+  const seenLangs = new Set();
+
+  for (const f of subtitleFiles) {
+    const fBase = stripExtension(f.name).trim().toLowerCase();
+    const isExact = fBase === base;
+    const allowed =
+      isExact ||
+      (opts.allowFolderFallback &&
+        (opts.singleVideoInFolder ||
+          fBase.includes('الترجمة') ||
+          fBase.includes('subtitle') ||
+          fBase.includes('caption')));
+    if (!allowed) continue;
+
+    const { language, label } = detectSubtitleLanguage(f.name);
+    if (seenLangs.has(language)) continue;
+    seenLangs.add(language);
+    matched.push({
+      id: f.id,
+      name: f.name,
+      size: Number(f.size || 0),
+      language,
+      label
+    });
+  }
+
+  // Sort Arabic first, English second
+  matched.sort((a, b) => {
+    if (a.language === 'ar') return -1;
+    if (b.language === 'ar') return 1;
+    if (a.language === 'en') return -1;
+    if (b.language === 'en') return 1;
+    return a.language.localeCompare(b.language);
+  });
+  return matched;
+}
+
+function findAllMatchingThumbnails(videoFileName, imageFiles, opts = {}) {
+  const primary = findMatchingThumbnail(videoFileName, imageFiles, opts);
+  if (!primary) return { primary: null, alternatives: [] };
+  const alternatives = (imageFiles || [])
+    .filter((f) => {
+      if (!f || f.id === primary.id) return false;
+      const n = String(f.name || '').toLowerCase();
+      return (
+        opts.singleVideoInFolder ||
+        n.includes('مصغر') ||
+        n.includes('thumb') ||
+        n.includes('a-b') ||
+        n.includes('اختبار') ||
+        n.includes('cover')
+      );
+    })
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType || 'image/jpeg',
+      size: Number(f.size || 0),
+      thumbnailLink: f.thumbnailLink || ''
+    }));
+  return {
+    primary: {
+      id: primary.id,
+      name: primary.name,
+      mimeType: primary.mimeType || 'image/jpeg',
+      size: Number(primary.size || 0),
+      thumbnailLink: primary.thumbnailLink || ''
+    },
+    alternatives
+  };
+}
+
+function detectShortVideo(file) {
+  const meta = (file && file.videoMediaMetadata) || {};
+  const durationMs = Number(meta.durationMillis || 0);
+  const durationSec = durationMs > 0 ? Math.round(durationMs / 1000) : 0;
+  const width = Number(meta.width || 0);
+  const height = Number(meta.height || 0);
+  const nameLower = String((file && file.name) || '').toLowerCase();
+  const sizeBytes = Number((file && file.size) || 0);
+
+  const isVertical = height > 0 && width > 0 && height > width;
+  const isShortDuration = durationSec > 0 && durationSec <= 65;
+  const hasShortHint =
+    nameLower.includes('short') ||
+    nameLower.includes('شورت') ||
+    nameLower.includes('ريلز') ||
+    nameLower.includes('reel') ||
+    nameLower.includes('معاينة') ||
+    nameLower.includes('٣٠ ثانية') ||
+    nameLower.includes('30 ثانية');
+
+  const isShort =
+    isVertical ||
+    isShortDuration ||
+    hasShortHint ||
+    (durationSec === 0 && sizeBytes > 0 && sizeBytes < 14 * 1024 * 1024);
+
+  return {
+    isShort,
+    isVertical,
+    durationSec,
+    width,
+    height
+  };
+}
+
+function parseTimestampToSeconds(ts) {
+  const m = String(ts || '').trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1] || 0);
+  const min = Number(m[2] || 0);
+  const sec = Number(m[3] || 0);
+  return h * 3600 + min * 60 + sec;
+}
+
+function parseGrowthPackText(rawText) {
+  const text = String(rawText || '').replace(/\r\n/g, '\n');
+  if (!text.trim()) return null;
+
+  // Extract English Title
+  let englishTitle = '';
+  const enTitleMatch = text.match(/►\s*English Title[^\n]*\n+([^\n]+)/i);
+  if (enTitleMatch) {
+    englishTitle = sanitizeYouTubeText(enTitleMatch[1], 100);
+  }
+
+  // Extract English Description (up to next section divider "----")
+  let englishDescription = '';
+  const enDescMatch = text.match(/►\s*English Description[^\n]*\n+([\s\S]*?)(?:\n-{5,}|\n►\s|$)/i);
+  if (enDescMatch) {
+    englishDescription = sanitizeYouTubeText(enDescMatch[1].trim(), 5000);
+  }
+
+  // Extract Pinned Comment
+  let pinnedComment = '';
+  const pinMatch = text.match(/►\s*التعليق المثبّ?ت[^\n]*\n+([\s\S]*?)(?:\n►\s|\n-{5,}|$)/i);
+  if (pinMatch) {
+    pinnedComment = pinMatch[1].trim();
+  }
+
+  // Extract Viral Shorts Clips
+  const clips = [];
+  const shortBlocks = text.split(/►\s*الشورت\s*#/);
+  for (let i = 1; i < shortBlocks.length; i++) {
+    const block = shortBlocks[i];
+    const headerLine = (block.split('\n')[0] || '').trim();
+    const timeMatch = block.match(/(\d{2}:\d{2}:\d{2})\s*إلى\s*(\d{2}:\d{2}:\d{2})/);
+    const hookMatch = block.match(/نص ظاهر على الشاشة[^\n]*\n+\s*[«"]([^»"\n]+)[»"]/);
+    const titleMatch = block.match(/عنوان الشورت:\s*\n+\s*([^\n]+)/);
+
+    if (timeMatch) {
+      const startSec = parseTimestampToSeconds(timeMatch[1]);
+      let endSec = parseTimestampToSeconds(timeMatch[2]);
+      if (startSec !== null && endSec !== null && endSec > startSec) {
+        if (endSec - startSec > 59) endSec = startSec + 58;
+        clips.push({
+          id: `clip-${i}`,
+          label: `الشورت #${headerLine.replace(/^\d+\s*/, '').trim() || i}`,
+          startSec,
+          endSec,
+          hookText: (hookMatch && hookMatch[1].trim()) || '',
+          title: sanitizeYouTubeText((titleMatch && titleMatch[1].trim()) || `شورت #${i} #Shorts`, 100)
+        });
+      }
+    }
+  }
+
+  return {
+    englishMeta:
+      englishTitle && englishDescription
+        ? { title: englishTitle, description: englishDescription }
+        : null,
+    pinnedComment,
+    viralClips: clips
+  };
+}
+
+function buildDefaultViralClips(title, extractedMeta, durationSec) {
+  const cleanTitle = stripEpisodePrefixForCtr(title || 'الحلقة');
+  const dur = Number(durationSec || 0);
+  const clips = [];
+
+  // Parse chapters from description if available
+  const desc = (extractedMeta && extractedMeta.description) || '';
+  const chapters = [];
+  for (const line of desc.split('\n')) {
+    const m = line.trim().match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/);
+    if (m) {
+      const s = parseTimestampToSeconds(m[1]);
+      if (s !== null) chapters.push({ sec: s, label: m[2].trim() });
+    }
+  }
+
+  if (chapters.length >= 3) {
+    const picks = [
+      { idx: 0, tag: 'الصدمة الافتتاحية' },
+      { idx: Math.min(2, chapters.length - 1), tag: 'نقطة التحول' },
+      { idx: Math.max(chapters.length - 2, 1), tag: 'الذروة والتأثير' }
+    ];
+    picks.forEach((p, i) => {
+      const ch = chapters[p.idx];
+      const startSec = ch.sec;
+      const maxEnd = dur > 0 ? Math.min(dur, startSec + 52) : startSec + 52;
+      if (maxEnd - startSec >= 10) {
+        clips.push({
+          id: `auto-clip-${i + 1}`,
+          label: `شورت #${i + 1} — ${p.tag} (${ch.label})`,
+          startSec,
+          endSec: maxEnd,
+          hookText: `${ch.label} — ${cleanTitle}`.slice(0, 62),
+          title: sanitizeYouTubeText(`${ch.label} | ${cleanTitle} #Shorts`, 100)
+        });
+      }
+    });
+    if (clips.length > 0) return clips;
+  }
+
+  // Fallback based on total duration
+  const total = dur > 60 ? dur : 300;
+  clips.push(
+    {
+      id: 'auto-clip-1',
+      label: 'شورت #1 — الخطاف الافتتاحي (أول 50 ثانية)',
+      startSec: 0,
+      endSec: Math.min(50, total),
+      hookText: cleanTitle.slice(0, 58),
+      title: sanitizeYouTubeText(`${cleanTitle} 😱 #Shorts`, 100)
+    },
+    {
+      id: 'auto-clip-2',
+      label: 'شورت #2 — منتصف القصة (لحظة التحول)',
+      startSec: Math.floor(total * 0.35),
+      endSec: Math.min(total, Math.floor(total * 0.35) + 48),
+      hookText: `اللحظة التي غيّرت كل شيء…`,
+      title: sanitizeYouTubeText(`ماذا حدث في منتصف التجربة؟ | ${cleanTitle} #Shorts`, 100)
+    },
+    {
+      id: 'auto-clip-3',
+      label: 'شورت #3 — الذروة والنهاية المؤثرة',
+      startSec: Math.max(0, Math.floor(total * 0.78)),
+      endSec: Math.min(total, Math.floor(total * 0.78) + 48),
+      hookText: `النهاية التي لم يتوقعها أحد…`,
+      title: sanitizeYouTubeText(`الحقيقة في اللحظة الأخيرة | ${cleanTitle} #Shorts`, 100)
+    }
+  );
+  return clips;
+}
+
+function generateViralTitleIdeas(baseTitle) {
+  const clean = stripEpisodePrefixForCtr(baseTitle || '').replace(/[؟?!]+$/, '').trim();
+  if (!clean) return [];
+  const ideas = [
+    `${clean}؟`,
+    `ماذا يحدث فعلاً: ${clean}؟`,
+    `الحقيقة الصادمة: ${clean}`,
+    `تخيّل لو حصل هذا غداً… ${clean}؟`,
+    `${clean} | القصة التي لم يخبرك بها أحد`
+  ];
+  return Array.from(new Set(ideas.map((t) => sanitizeYouTubeText(t, 95)).filter(Boolean)));
+}
+
+function buildDefaultPinnedComment(title) {
+  const clean = stripEpisodePrefixForCtr(title || '');
+  return (
+    `سؤال للنقاش بعد مشاهدة «${clean}» 👇\n` +
+    'لو وضِعت في هذا الموقف غداً، ما هو أول قرار ستتخذه في الساعة الأولى؟ شاركنا رأيك في التعليقات!'
+  );
+}
+
 function resolveThumbnailMimeType(mimeType, fileName) {
   const m = String(mimeType || '').toLowerCase();
   if (m === 'image/png' || String(fileName || '').toLowerCase().endsWith('.png')) {
@@ -416,9 +731,19 @@ module.exports = {
   isThumbnailFile,
   isSubtitleFile,
   isMetadataTextFile,
+  isGrowthPackFile,
+  detectSubtitleLanguage,
   stripExtension,
   findMatchingThumbnail,
+  findAllMatchingThumbnails,
   findMatchingSubtitle,
+  findAllMatchingSubtitles,
+  detectShortVideo,
+  parseTimestampToSeconds,
+  parseGrowthPackText,
+  buildDefaultViralClips,
+  generateViralTitleIdeas,
+  buildDefaultPinnedComment,
   stripEpisodePrefixForCtr,
   inferBestCategoryId,
   parseEpisodeMetadataText,

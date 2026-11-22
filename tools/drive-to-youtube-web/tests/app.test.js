@@ -262,3 +262,128 @@ test('YouTube algorithm helpers parse Arabic publishing pack, match .srt subtitl
   assert.equal(built.status.publicStatsViewable, true);
 });
 
+test('Viral Engine v3: multi-language .srt, A/B thumbnails, Short detection, growth pack parser, and YouTube viral APIs', async () => {
+  // 1. Multi-language subtitles (AR + EN)
+  const subs = ytUtils.findAllMatchingSubtitles(
+    '01 — ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟ — نقش 04.mp4',
+    [
+      { id: 's_en', name: '08 — English Subtitles (EN).srt', size: '21000' },
+      { id: 's_ar', name: '06 — الترجمة العربية.srt', size: '24185' }
+    ],
+    { allowFolderFallback: true, singleVideoInFolder: true }
+  );
+  assert.equal(subs.length, 2);
+  assert.equal(subs[0].language, 'ar');
+  assert.equal(subs[1].language, 'en');
+
+  // 2. Primary + A/B alternative thumbnails
+  const thumbs = ytUtils.findAllMatchingThumbnails(
+    '01 — ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟ — نقش 04.mp4',
+    [
+      { id: 't1', name: '03 — ٧ أيام بلا إنترنت — الصورة المصغرة.jpg', size: '262425' },
+      { id: 't2', name: '03B — نسخة اختبار A-B — الطائرة المتجمدة (06:07).png', size: '410000' },
+      { id: 't3', name: '03C — نسخة اختبار A-B — التذكرة بلا شبكة.png', size: '390000' }
+    ],
+    { allowFolderFallback: true, singleVideoInFolder: true }
+  );
+  assert.equal(thumbs.primary.id, 't1');
+  assert.equal(thumbs.alternatives.length, 2);
+
+  // 3. Short vs Long detection using videoMediaMetadata
+  const longInfo = ytUtils.detectShortVideo({
+    name: '01 — نقش 04.mp4',
+    size: '83769912',
+    videoMediaMetadata: { width: 1920, height: 1080, durationMillis: '848000' }
+  });
+  assert.equal(longInfo.isShort, false);
+  assert.equal(longInfo.durationSec, 848);
+
+  const shortInfo = ytUtils.detectShortVideo({
+    name: 'نَقْش — يمّه، وصلت.mp4',
+    size: '8093574',
+    videoMediaMetadata: { width: 1080, height: 1920, durationMillis: '45000' }
+  });
+  assert.equal(shortInfo.isShort, true);
+  assert.equal(shortInfo.isVertical, true);
+
+  // 4. Growth pack parser extracts English localization + Pinned Comment + 3 Viral Clips
+  const sampleGrowth = `
+► الشورت #1 (الصدمة)
+- التوقيت للقص من الفيديو الأصلي: من 00:00:00 إلى 00:00:59
+- نص ظاهر على الشاشة في أول ثانيتين (Hook):
+  «الساعة 6:07 صباحاً… طائرة ابنها تجمّدت فوق البحر ✈️»
+- عنوان الشورت:
+  ماذا لو اختفى الإنترنت عن العالم فجأة لمدة 7 أيام؟ 😱 #نقش
+
+► English Title (العنوان الإنجليزي):
+What If the Internet Disappeared for 7 Days?
+
+► English Description (الوصف الإنجليزي مع الفصول):
+On Maryam's phone screen, her son's plane is frozen over the sea.
+------------------------------------------------------------------------
+► التعليق المثبّت (انسخه وثبّته):
+لو انقطع الإنترنت فجأة الآن لمدة 7 أيام… ما أول شيء ستفعله؟ 👇
+`;
+  const growth = ytUtils.parseGrowthPackText(sampleGrowth);
+  assert.ok(growth.englishMeta);
+  assert.equal(growth.englishMeta.title, 'What If the Internet Disappeared for 7 Days?');
+  assert.ok(growth.pinnedComment.includes('لو انقطع الإنترنت'));
+  assert.equal(growth.viralClips.length, 1);
+  assert.equal(growth.viralClips[0].startSec, 0);
+  assert.equal(growth.viralClips[0].endSec, 59);
+
+  // 5. Mocked YouTube viral post-upload APIs (playlist, localization, first comment)
+  const apiCalls = [];
+  const mockYtFetch = async (url, opts = {}) => {
+    apiCalls.push({ url, method: opts.method || 'GET' });
+    if (url.includes('/playlists?part=snippet&mine=true')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) };
+    }
+    if (url.includes('/playlists?part=snippet,status')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ id: 'PL_NAQSH_1' }) };
+    }
+    if (url.includes('/playlistItems')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ id: 'PLI_1' }) };
+    }
+    if (url.includes('/commentThreads')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ id: 'CMT_1' }) };
+    }
+    if (url.includes('/videos?part=snippet,localizations&id=')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            items: [{ id: 'VID_1', snippet: { title: 'عربي', description: 'وصف', categoryId: '28' }, localizations: {} }]
+          })
+      };
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ id: 'VID_1' }) };
+  };
+
+  const pl = await googleApi.findOrCreateYouTubePlaylist('tok', 'سلسلة نقش', '', mockYtFetch);
+  assert.equal(pl.id, 'PL_NAQSH_1');
+  assert.equal(pl.created, true);
+  await googleApi.addVideoToYouTubePlaylist('tok', pl.id, 'VID_1', mockYtFetch);
+  const cmtId = await googleApi.postYouTubeFirstComment('tok', 'VID_1', 'سؤال للنقاش', mockYtFetch);
+  assert.equal(cmtId, 'CMT_1');
+  await googleApi.applyYouTubeLocalization('tok', 'VID_1', 'en', 'English Title', 'English Desc', mockYtFetch);
+  assert.ok(apiCalls.some((c) => c.method === 'PUT' && c.url.includes('localizations')));
+
+  // 6. New HTTP routes reject unauthenticated calls with 401
+  const server = createAppServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  try {
+    const rStream = await fetch(`${baseUrl}/api/drive/stream?fileId=abc`);
+    assert.equal(rStream.status, 401);
+    const rInit = await fetch(`${baseUrl}/api/upload/init-direct`, { method: 'POST', body: '{}' });
+    assert.equal(rInit.status, 401);
+    const rChunk = await fetch(`${baseUrl}/api/upload/chunk-direct`, { method: 'POST', body: 'x' });
+    assert.equal(rChunk.status, 401);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+

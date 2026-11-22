@@ -12,23 +12,28 @@ const {
   cleanVideoTitle,
   stripEpisodePrefixForCtr,
   inferBestCategoryId,
-  findMatchingThumbnail,
-  findMatchingSubtitle,
-  parseEpisodeMetadataText
+  findAllMatchingThumbnails,
+  findAllMatchingSubtitles,
+  detectShortVideo,
+  parseEpisodeMetadataText,
+  parseGrowthPackText,
+  buildDefaultViralClips,
+  generateViralTitleIdeas,
+  buildDefaultPinnedComment
 } = require('../../lib/youtube-utils');
 
-async function loadExtractedMetaByParent(accessToken, metadataFilesByParent) {
+async function loadTextPacksByParent(accessToken, filesByParent, parserFn) {
   const out = {};
-  const entries = Object.entries(metadataFilesByParent || {});
+  const entries = Object.entries(filesByParent || {});
   await Promise.all(
     entries.map(async ([pid, files]) => {
       if (!Array.isArray(files) || files.length === 0) return;
       try {
-        const metaFile = files[0];
-        const raw = await downloadDriveTextFile(accessToken, metaFile.id);
-        const parsed = parseEpisodeMetadataText(raw);
+        const file = files[0];
+        const raw = await downloadDriveTextFile(accessToken, file.id);
+        const parsed = parserFn(raw);
         if (parsed) {
-          out[pid] = { ...parsed, sourceFileName: metaFile.name };
+          out[pid] = { ...parsed, sourceFileName: file.name };
         }
       } catch {
         // Non-fatal: continue without auto-extracted text
@@ -36,6 +41,71 @@ async function loadExtractedMetaByParent(accessToken, metadataFilesByParent) {
     })
   );
   return out;
+}
+
+function buildEnrichedVideo({
+  video,
+  folderName,
+  isSingle,
+  folderThumbs,
+  folderSubs,
+  extractedMeta,
+  growthPack
+}) {
+  const thumbSet = findAllMatchingThumbnails(video.name, folderThumbs, {
+    allowFolderFallback: true,
+    singleVideoInFolder: isSingle
+  });
+  const allSubtitles = findAllMatchingSubtitles(video.name, folderSubs, {
+    allowFolderFallback: true,
+    singleVideoInFolder: isSingle
+  });
+  const matchingSubtitle = allSubtitles[0] || null;
+
+  const sizeBytes = Number(video.size || 0);
+  const cleanTitle = stripEpisodePrefixForCtr(cleanVideoTitle(video.name));
+  const suggestedTitle = (extractedMeta && extractedMeta.title) || cleanTitle;
+  const shortInfo = detectShortVideo(video);
+
+  const englishMeta = (growthPack && growthPack.englishMeta) || null;
+  const viralClips =
+    growthPack && Array.isArray(growthPack.viralClips) && growthPack.viralClips.length > 0
+      ? growthPack.viralClips
+      : !shortInfo.isShort
+        ? buildDefaultViralClips(suggestedTitle, extractedMeta, shortInfo.durationSec)
+        : [];
+  const suggestedComment =
+    (growthPack && growthPack.pinnedComment) || buildDefaultPinnedComment(suggestedTitle);
+
+  return {
+    id: video.id,
+    name: video.name,
+    mimeType: video.mimeType || 'video/mp4',
+    sizeBytes,
+    sizeMb: Math.round((sizeBytes / (1024 * 1024)) * 100) / 100,
+    modifiedTime: video.modifiedTime || '',
+    webViewLink: video.webViewLink || `https://drive.google.com/file/d/${video.id}/view`,
+    thumbnailLink: video.thumbnailLink || '',
+    parents: video.parents || [],
+    folderName: folderName || '',
+    durationSec: shortInfo.durationSec,
+    width: shortInfo.width,
+    height: shortInfo.height,
+    isShort: shortInfo.isShort,
+    isVertical: shortInfo.isVertical,
+    suggestedTitle,
+    suggestedCategoryId:
+      (extractedMeta && extractedMeta.categoryId) || inferBestCategoryId(suggestedTitle),
+    extractedMeta,
+    englishMeta,
+    viralClips,
+    viralTitleIdeas: generateViralTitleIdeas(suggestedTitle),
+    suggestedComment,
+    matchingThumbnail: thumbSet.primary,
+    alternativeThumbnails: thumbSet.alternatives,
+    matchingSubtitle,
+    allSubtitles
+  };
 }
 
 module.exports = async function handler(req, res) {
@@ -58,18 +128,18 @@ module.exports = async function handler(req, res) {
         folderNamesById,
         thumbnailsByParent,
         subtitlesByParent,
-        metadataFilesByParent
+        metadataFilesByParent,
+        growthFilesByParent
       } = await listAllDriveVideos(auth.accessToken, [
         DEFAULTS.PUBLISHED_FOLDER_ID,
         DEFAULTS.FAILED_FOLDER_ID
       ]);
 
-      const extractedMetaByParent = await loadExtractedMetaByParent(
-        auth.accessToken,
-        metadataFilesByParent
-      );
+      const [extractedMetaByParent, growthPackByParent] = await Promise.all([
+        loadTextPacksByParent(auth.accessToken, metadataFilesByParent, parseEpisodeMetadataText),
+        loadTextPacksByParent(auth.accessToken, growthFilesByParent, parseGrowthPackText)
+      ]);
 
-      // Count videos per parent folder so single-video episode folders auto-match their thumbnail & subtitle
       const countByParent = {};
       for (const v of videos) {
         const pid = (v.parents && v.parents[0]) || '';
@@ -79,50 +149,15 @@ module.exports = async function handler(req, res) {
       const enrichedVideos = videos.map((v) => {
         const pid = (v.parents && v.parents[0]) || '';
         const isSingle = countByParent[pid] === 1;
-        const folderThumbs = (pid && thumbnailsByParent[pid]) || [];
-        const folderSubs = (pid && subtitlesByParent[pid]) || [];
-        const thumb = findMatchingThumbnail(v.name, folderThumbs, {
-          allowFolderFallback: true,
-          singleVideoInFolder: isSingle
-        });
-        const sub = findMatchingSubtitle(v.name, folderSubs, {
-          allowFolderFallback: true,
-          singleVideoInFolder: isSingle
-        });
-        const extractedMeta = pid && isSingle ? extractedMetaByParent[pid] || null : null;
-        const sizeBytes = Number(v.size || 0);
-        const cleanTitle = stripEpisodePrefixForCtr(cleanVideoTitle(v.name));
-
-        return {
-          id: v.id,
-          name: v.name,
-          mimeType: v.mimeType || 'video/mp4',
-          sizeBytes,
-          sizeMb: Math.round((sizeBytes / (1024 * 1024)) * 100) / 100,
-          modifiedTime: v.modifiedTime || '',
-          webViewLink: v.webViewLink || `https://drive.google.com/file/d/${v.id}/view`,
-          parents: v.parents || [],
+        return buildEnrichedVideo({
+          video: v,
           folderName: (pid && folderNamesById[pid]) || '',
-          suggestedTitle: (extractedMeta && extractedMeta.title) || cleanTitle,
-          suggestedCategoryId:
-            (extractedMeta && extractedMeta.categoryId) || inferBestCategoryId(cleanTitle),
-          extractedMeta,
-          matchingThumbnail: thumb
-            ? {
-                id: thumb.id,
-                name: thumb.name,
-                mimeType: thumb.mimeType || 'image/jpeg',
-                size: Number(thumb.size || 0)
-              }
-            : null,
-          matchingSubtitle: sub
-            ? {
-                id: sub.id,
-                name: sub.name,
-                size: Number(sub.size || 0)
-              }
-            : null
-        };
+          isSingle,
+          folderThumbs: (pid && thumbnailsByParent[pid]) || [],
+          folderSubs: (pid && subtitlesByParent[pid]) || [],
+          extractedMeta: pid && isSingle ? extractedMetaByParent[pid] || null : null,
+          growthPack: pid && isSingle ? growthPackByParent[pid] || null : null
+        });
       });
 
       return sendJson(res, 200, {
@@ -133,59 +168,26 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const { videos, thumbnails, subtitles, metadataFiles, folders } = await listDriveFolderContents(
-      auth.accessToken,
-      folderId
-    );
-    const extractedMap = await loadExtractedMetaByParent(auth.accessToken, {
-      [folderId]: metadataFiles
-    });
-    const folderExtractedMeta = videos.length === 1 ? extractedMap[folderId] || null : null;
+    const { videos, thumbnails, subtitles, metadataFiles, growthFiles, folders } =
+      await listDriveFolderContents(auth.accessToken, folderId);
 
-    const enrichedVideos = videos.map((v) => {
-      const isSingle = videos.length === 1;
-      const thumb = findMatchingThumbnail(v.name, thumbnails, {
-        allowFolderFallback: true,
-        singleVideoInFolder: isSingle
-      });
-      const sub = findMatchingSubtitle(v.name, subtitles, {
-        allowFolderFallback: true,
-        singleVideoInFolder: isSingle
-      });
-      const sizeBytes = Number(v.size || 0);
-      const cleanTitle = stripEpisodePrefixForCtr(cleanVideoTitle(v.name));
+    const [extractedMap, growthMap] = await Promise.all([
+      loadTextPacksByParent(auth.accessToken, { [folderId]: metadataFiles }, parseEpisodeMetadataText),
+      loadTextPacksByParent(auth.accessToken, { [folderId]: growthFiles }, parseGrowthPackText)
+    ]);
 
-      return {
-        id: v.id,
-        name: v.name,
-        mimeType: v.mimeType || 'video/mp4',
-        sizeBytes,
-        sizeMb: Math.round((sizeBytes / (1024 * 1024)) * 100) / 100,
-        modifiedTime: v.modifiedTime || '',
-        webViewLink: v.webViewLink || `https://drive.google.com/file/d/${v.id}/view`,
-        parents: v.parents || [],
+    const isSingle = videos.length === 1;
+    const enrichedVideos = videos.map((v) =>
+      buildEnrichedVideo({
+        video: v,
         folderName: '',
-        suggestedTitle: (folderExtractedMeta && folderExtractedMeta.title) || cleanTitle,
-        suggestedCategoryId:
-          (folderExtractedMeta && folderExtractedMeta.categoryId) || inferBestCategoryId(cleanTitle),
-        extractedMeta: folderExtractedMeta,
-        matchingThumbnail: thumb
-          ? {
-              id: thumb.id,
-              name: thumb.name,
-              mimeType: thumb.mimeType || 'image/jpeg',
-              size: Number(thumb.size || 0)
-            }
-          : null,
-        matchingSubtitle: sub
-          ? {
-              id: sub.id,
-              name: sub.name,
-              size: Number(sub.size || 0)
-            }
-          : null
-      };
-    });
+        isSingle,
+        folderThumbs: thumbnails,
+        folderSubs: subtitles,
+        extractedMeta: isSingle ? extractedMap[folderId] || null : null,
+        growthPack: isSingle ? growthMap[folderId] || null : null
+      })
+    );
 
     return sendJson(res, 200, {
       ok: true,

@@ -6,6 +6,7 @@ const {
   isThumbnailFile,
   isSubtitleFile,
   isMetadataTextFile,
+  isGrowthPackFile,
   MAX_THUMBNAIL_BYTES,
   MAX_SUBTITLE_BYTES,
   parseNextOffsetFromRangeHeader,
@@ -225,7 +226,7 @@ async function listDriveFolderContents(accessToken, folderId, fetchImpl = fetch)
   const url =
     'https://www.googleapis.com/drive/v3/files?' +
     `q=${encodeURIComponent(q)}` +
-    `&fields=${encodeURIComponent('files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink,parents)')}` +
+    `&fields=${encodeURIComponent('files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink,parents,videoMediaMetadata(width,height,durationMillis))')}` +
     `&orderBy=${encodeURIComponent('modifiedTime desc')}` +
     '&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true';
 
@@ -242,9 +243,10 @@ async function listDriveFolderContents(accessToken, folderId, fetchImpl = fetch)
   const thumbnails = all.filter(isThumbnailFile);
   const subtitles = all.filter(isSubtitleFile);
   const metadataFiles = all.filter(isMetadataTextFile);
+  const growthFiles = all.filter(isGrowthPackFile);
   const folders = all.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
 
-  return { videos, thumbnails, subtitles, metadataFiles, folders };
+  return { videos, thumbnails, subtitles, metadataFiles, growthFiles, folders };
 }
 
 async function downloadDriveTextFile(accessToken, fileId, maxBytes = 65536, fetchImpl = fetch) {
@@ -268,7 +270,7 @@ async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl 
   const url =
     'https://www.googleapis.com/drive/v3/files?' +
     `q=${encodeURIComponent(q)}` +
-    `&fields=${encodeURIComponent('files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink,parents)')}` +
+    `&fields=${encodeURIComponent('files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink,parents,videoMediaMetadata(width,height,durationMillis))')}` +
     `&orderBy=${encodeURIComponent('modifiedTime desc')}` +
     '&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true';
 
@@ -302,6 +304,7 @@ async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl 
   const thumbnailsByParent = {};
   const subtitlesByParent = {};
   const metadataFilesByParent = {};
+  const growthFilesByParent = {};
 
   await Promise.all(
     parentIds.map(async (pid) => {
@@ -314,13 +317,21 @@ async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl 
         thumbnailsByParent[pid] = contents.thumbnails || [];
         subtitlesByParent[pid] = contents.subtitles || [];
         metadataFilesByParent[pid] = contents.metadataFiles || [];
+        growthFilesByParent[pid] = contents.growthFiles || [];
       } catch {
         // Ignore individual parent lookup failures
       }
     })
   );
 
-  return { videos, folderNamesById, thumbnailsByParent, subtitlesByParent, metadataFilesByParent };
+  return {
+    videos,
+    folderNamesById,
+    thumbnailsByParent,
+    subtitlesByParent,
+    metadataFilesByParent,
+    growthFilesByParent
+  };
 }
 
 async function getDriveFileMetadata(accessToken, fileId, fetchImpl = fetch) {
@@ -487,18 +498,27 @@ async function uploadYouTubeThumbnailFromDrive(accessToken, videoId, thumbFile, 
   }
 }
 
-async function uploadYouTubeCaptionFromDrive(accessToken, videoId, subtitleFile, language = 'ar', fetchImpl = fetch) {
+async function uploadYouTubeCaptionFromDrive(
+  accessToken,
+  videoId,
+  subtitleFile,
+  language = 'ar',
+  captionName = '',
+  fetchImpl = fetch
+) {
   const size = Number(subtitleFile.size || 0);
   if (size <= 0 || size > MAX_SUBTITLE_BYTES) {
     throw new Error('حجم ملف الترجمة يجب أن يكون أقل من 5MB.');
   }
   const bytes = await downloadDriveRange(accessToken, subtitleFile.id, 0, size - 1, fetchImpl);
-  const boundary = 'd2yt_caption_boundary_' + Date.now();
+  const lang = String(language || 'ar').trim() || 'ar';
+  const defaultNames = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español', tr: 'Türkçe' };
+  const boundary = 'd2yt_caption_boundary_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
   const metaJson = JSON.stringify({
     snippet: {
       videoId,
-      language: String(language || 'ar').trim() || 'ar',
-      name: 'العربية',
+      language: lang,
+      name: captionName || defaultNames[lang] || lang.toUpperCase(),
       isDraft: false
     }
   });
@@ -527,8 +547,155 @@ async function uploadYouTubeCaptionFromDrive(accessToken, videoId, subtitleFile,
 
   if (!resp.ok) {
     const { parsed, text } = await parseJsonResponse(resp);
-    throw new Error(`تعذر رفع ملف الترجمة (${resp.status}): ${extractApiError(parsed, text)}`);
+    throw new Error(`تعذر رفع ملف الترجمة (${lang}) (${resp.status}): ${extractApiError(parsed, text)}`);
   }
+}
+
+async function applyYouTubeLocalization(
+  accessToken,
+  videoId,
+  lang,
+  localizedTitle,
+  localizedDescription,
+  fetchImpl = fetch
+) {
+  if (!localizedTitle) return;
+  const getUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,localizations&id=${encodeURIComponent(videoId)}`;
+  const getResp = await fetchImpl(getUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const getJson = await parseJsonResponse(getResp);
+  if (!getResp.ok || !getJson.parsed || !Array.isArray(getJson.parsed.items) || !getJson.parsed.items[0]) {
+    throw new Error(`تعذر جلب بيانات الفيديو لإضافة الترجمة العالمية (${getResp.status}).`);
+  }
+  const current = getJson.parsed.items[0];
+  const snippet = current.snippet || {};
+  if (!snippet.defaultLanguage) snippet.defaultLanguage = 'ar';
+  const localizations = Object.assign({}, current.localizations || {}, {
+    [String(lang || 'en')]: {
+      title: String(localizedTitle).slice(0, 100),
+      description: String(localizedDescription || '').slice(0, 5000)
+    }
+  });
+
+  const putUrl = 'https://www.googleapis.com/youtube/v3/videos?part=snippet,localizations';
+  const putResp = await fetchImpl(putUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      id: videoId,
+      snippet: {
+        title: snippet.title,
+        description: snippet.description,
+        categoryId: snippet.categoryId || '27',
+        defaultLanguage: snippet.defaultLanguage,
+        tags: snippet.tags
+      },
+      localizations
+    })
+  });
+  if (!putResp.ok) {
+    const { parsed, text } = await parseJsonResponse(putResp);
+    throw new Error(`تعذر إضافة العنوان والوصف بالإنجليزية (${putResp.status}): ${extractApiError(parsed, text)}`);
+  }
+}
+
+async function findOrCreateYouTubePlaylist(accessToken, playlistTitle, playlistDescription = '', fetchImpl = fetch) {
+  const cleanTitle = String(playlistTitle || '').trim();
+  if (!cleanTitle) return null;
+
+  const listUrl = 'https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50';
+  const listResp = await fetchImpl(listUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const listJson = await parseJsonResponse(listResp);
+  if (listResp.ok && listJson.parsed && Array.isArray(listJson.parsed.items)) {
+    const existing = listJson.parsed.items.find(
+      (pl) => pl.snippet && String(pl.snippet.title || '').trim().toLowerCase() === cleanTitle.toLowerCase()
+    );
+    if (existing && existing.id) {
+      return { id: existing.id, title: existing.snippet.title, created: false };
+    }
+  }
+
+  const createUrl = 'https://www.googleapis.com/youtube/v3/playlists?part=snippet,status';
+  const createResp = await fetchImpl(createUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      snippet: {
+        title: cleanTitle.slice(0, 150),
+        description: String(playlistDescription || 'سلسلة حلقات مترابطة للمشاهدة المتواصلة.').slice(0, 5000),
+        defaultLanguage: 'ar'
+      },
+      status: { privacyStatus: 'public' }
+    })
+  });
+  const createJson = await parseJsonResponse(createResp);
+  if (!createResp.ok || !createJson.parsed || !createJson.parsed.id) {
+    throw new Error(`تعذر إنشاء قائمة التشغيل (${createResp.status}): ${extractApiError(createJson.parsed, createJson.text)}`);
+  }
+  return { id: createJson.parsed.id, title: cleanTitle, created: true };
+}
+
+async function addVideoToYouTubePlaylist(accessToken, playlistId, videoId, fetchImpl = fetch) {
+  const url = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet';
+  const resp = await fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      snippet: {
+        playlistId,
+        resourceId: {
+          kind: 'youtube#video',
+          videoId
+        }
+      }
+    })
+  });
+  if (!resp.ok) {
+    const { parsed, text } = await parseJsonResponse(resp);
+    throw new Error(`تعذر إضافة الفيديو لقائمة التشغيل (${resp.status}): ${extractApiError(parsed, text)}`);
+  }
+}
+
+async function postYouTubeFirstComment(accessToken, videoId, commentText, fetchImpl = fetch) {
+  const text = String(commentText || '').trim();
+  if (!text) return null;
+  const url = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet';
+  const resp = await fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      snippet: {
+        videoId,
+        topLevelComment: {
+          snippet: {
+            textOriginal: text.slice(0, 10000)
+          }
+        }
+      }
+    })
+  });
+  const parsedResp = await parseJsonResponse(resp);
+  if (!resp.ok) {
+    throw new Error(
+      `تعذر نشر التعليق التفاعلي الأول (${resp.status}): ${extractApiError(parsedResp.parsed, parsedResp.text)}`
+    );
+  }
+  return parsedResp.parsed && parsedResp.parsed.id ? parsedResp.parsed.id : 'ok';
 }
 
 async function appendPublishedRowToSheet(accessToken, spreadsheetId, rowValues, fetchImpl = fetch) {
@@ -569,5 +736,9 @@ module.exports = {
   uploadChunkToYouTube,
   uploadYouTubeThumbnailFromDrive,
   uploadYouTubeCaptionFromDrive,
+  applyYouTubeLocalization,
+  findOrCreateYouTubePlaylist,
+  addVideoToYouTubePlaylist,
+  postYouTubeFirstComment,
   appendPublishedRowToSheet
 };

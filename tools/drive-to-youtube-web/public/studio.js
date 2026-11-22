@@ -68,9 +68,40 @@
     moveToPublishedCheck: document.getElementById('moveToPublishedCheck'),
     attachThumbnailCheck: document.getElementById('attachThumbnailCheck'),
     attachSubtitleCheck: document.getElementById('attachSubtitleCheck'),
+    applyEnglishLocCheck: document.getElementById('applyEnglishLocCheck'),
+    addToPlaylistCheck: document.getElementById('addToPlaylistCheck'),
+    playlistTitleInput: document.getElementById('playlistTitleInput'),
+    postFirstCommentCheck: document.getElementById('postFirstCommentCheck'),
     logToSheetCheck: document.getElementById('logToSheetCheck'),
+    scheduleCampaignBtn: document.getElementById('scheduleCampaignBtn'),
     activityLog: document.getElementById('activityLog'),
-    clearLogsBtn: document.getElementById('clearLogsBtn')
+    clearLogsBtn: document.getElementById('clearLogsBtn'),
+    // Built-in 9:16 Viral Short Clipper modal elements
+    clipperModal: document.getElementById('clipperModal'),
+    clipperVideoName: document.getElementById('clipperVideoName'),
+    closeClipperBtn: document.getElementById('closeClipperBtn'),
+    clipperPresets: document.getElementById('clipperPresets'),
+    clipperCanvas: document.getElementById('clipperCanvas'),
+    clipperSourceVideo: document.getElementById('clipperSourceVideo'),
+    clipperPreviewBtn: document.getElementById('clipperPreviewBtn'),
+    clipperRenderBtn: document.getElementById('clipperRenderBtn'),
+    clipperStopBtn: document.getElementById('clipperStopBtn'),
+    clipperStatusBox: document.getElementById('clipperStatusBox'),
+    clipperOutputBox: document.getElementById('clipperOutputBox'),
+    clipperResultVideo: document.getElementById('clipperResultVideo'),
+    clipperUploadYtBtn: document.getElementById('clipperUploadYtBtn'),
+    clipperDownloadLink: document.getElementById('clipperDownloadLink'),
+    clipperUploadProgress: document.getElementById('clipperUploadProgress'),
+    clipperUploadBar: document.getElementById('clipperUploadBar'),
+    clipperUploadText: document.getElementById('clipperUploadText'),
+    clipperUploadPct: document.getElementById('clipperUploadPct'),
+    clipStartInput: document.getElementById('clipStartInput'),
+    clipEndInput: document.getElementById('clipEndInput'),
+    clipHookInput: document.getElementById('clipHookInput'),
+    clipTitleInput: document.getElementById('clipTitleInput'),
+    clipDescInput: document.getElementById('clipDescInput'),
+    clipPrivacySelect: document.getElementById('clipPrivacySelect'),
+    clipScheduleInput: document.getElementById('clipScheduleInput')
   };
 
   function loadJsonStorage(storage, key, fallback) {
@@ -86,10 +117,14 @@
     const cfg = {
       intervalMin: Number(el.intervalSelect.value || 15),
       defaultPrivacy: el.defaultPrivacySelect.value || 'private',
-      chunkSizeMb: Number(el.chunkSizeSelect.value || 8),
+      chunkSizeMb: Number(el.chunkSizeSelect.value || 4),
       moveToPublished: el.moveToPublishedCheck.checked,
       attachThumbnail: el.attachThumbnailCheck.checked,
       attachSubtitle: el.attachSubtitleCheck ? el.attachSubtitleCheck.checked : true,
+      applyEnglishLoc: el.applyEnglishLocCheck ? el.applyEnglishLocCheck.checked : true,
+      addToPlaylist: el.addToPlaylistCheck ? el.addToPlaylistCheck.checked : true,
+      playlistTitle: el.playlistTitleInput ? el.playlistTitleInput.value.trim() : '',
+      postFirstComment: el.postFirstCommentCheck ? el.postFirstCommentCheck.checked : true,
       logToSheet: el.logToSheetCheck.checked
     };
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cfg));
@@ -105,6 +140,18 @@
     if (typeof cfg.attachThumbnail === 'boolean') el.attachThumbnailCheck.checked = cfg.attachThumbnail;
     if (typeof cfg.attachSubtitle === 'boolean' && el.attachSubtitleCheck) {
       el.attachSubtitleCheck.checked = cfg.attachSubtitle;
+    }
+    if (typeof cfg.applyEnglishLoc === 'boolean' && el.applyEnglishLocCheck) {
+      el.applyEnglishLocCheck.checked = cfg.applyEnglishLoc;
+    }
+    if (typeof cfg.addToPlaylist === 'boolean' && el.addToPlaylistCheck) {
+      el.addToPlaylistCheck.checked = cfg.addToPlaylist;
+    }
+    if (cfg.playlistTitle && el.playlistTitleInput) {
+      el.playlistTitleInput.value = cfg.playlistTitle;
+    }
+    if (typeof cfg.postFirstComment === 'boolean' && el.postFirstCommentCheck) {
+      el.postFirstCommentCheck.checked = cfg.postFirstComment;
     }
     if (typeof cfg.logToSheet === 'boolean') el.logToSheetCheck.checked = cfg.logToSheet;
   }
@@ -265,6 +312,7 @@
       el.setupPanel.classList.add('hidden');
       el.refreshVideosBtn.disabled = false;
       el.publishAllBtn.disabled = false;
+      if (el.scheduleCampaignBtn) el.scheduleCampaignBtn.disabled = false;
       el.loadCustomFolderBtn.disabled = false;
       el.autoPublishToggle.disabled = false;
 
@@ -306,6 +354,7 @@
       el.setupPanel.classList.remove('hidden');
       el.refreshVideosBtn.disabled = true;
       el.publishAllBtn.disabled = true;
+      if (el.scheduleCampaignBtn) el.scheduleCampaignBtn.disabled = true;
       el.loadCustomFolderBtn.disabled = true;
       el.autoPublishToggle.disabled = true;
       el.autoPublishToggle.checked = false;
@@ -495,17 +544,41 @@
       .join('');
   }
 
+  function formatDuration(sec) {
+    const s = Math.max(0, Math.round(Number(sec || 0)));
+    if (!s) return '';
+    const mins = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${mins}:${String(rem).padStart(2, '0')}`;
+  }
+
+  function getSelectedThumbnail(video, meta) {
+    const allThumbs = [video.matchingThumbnail, ...(video.alternativeThumbnails || [])].filter(Boolean);
+    if (!allThumbs.length) return null;
+    if (meta && meta.selectedThumbnailId) {
+      const found = allThumbs.find((t) => t.id === meta.selectedThumbnailId);
+      if (found) return found;
+    }
+    return allThumbs[0];
+  }
+
   function getVideoMeta(video) {
     if (!state.videoEdits[video.id]) {
       const ext = video.extractedMeta || null;
+      let initialTitle = (ext && ext.title) || video.suggestedTitle;
+      if (video.isShort && !/#shorts/i.test(initialTitle) && initialTitle.length < 88) {
+        initialTitle = `${initialTitle} #Shorts`;
+      }
       state.videoEdits[video.id] = {
-        title: (ext && ext.title) || video.suggestedTitle,
-        description: (ext && ext.description) || '',
-        tags: (ext && ext.tagsText) || '',
+        title: initialTitle,
+        description: (ext && ext.description) || (video.isShort ? `${initialTitle}\n\nشاهد الحلقة الكاملة على القناة 👇\n\n#Shorts #نقش #ماذا_لو` : ''),
+        tags: (ext && ext.tagsText) || (video.isShort ? 'Shorts، نقش، ماذا لو، وثائقي قصير، قصص معرفية' : ''),
         privacyStatus: el.defaultPrivacySelect.value || 'private',
         publishAt: '',
         categoryId: (ext && ext.categoryId) || video.suggestedCategoryId || '27',
         madeForKids: false,
+        selectedThumbnailId: video.matchingThumbnail ? video.matchingThumbnail.id : '',
+        firstComment: video.suggestedComment || '',
         expanded: false
       };
     }
@@ -522,26 +595,32 @@
     const hashtags = cleanDesc.match(/#[^\s#]+/g) || [];
     const hasChapters = /\b0?0:00\b/.test(cleanDesc);
     const hasFilePrefix = /^\d{1,3}\s*[—–\-_.]/.test(cleanTitle);
+    const allSubs = Array.isArray(video.allSubtitles) && video.allSubtitles.length
+      ? video.allSubtitles
+      : video.matchingSubtitle ? [video.matchingSubtitle] : [];
+    const hasSelectedThumb = Boolean(getSelectedThumbnail(video, meta)) && el.attachThumbnailCheck.checked;
+    const hasPlaylist = Boolean(el.addToPlaylistCheck && el.addToPlaylistCheck.checked && el.playlistTitleInput && el.playlistTitleInput.value.trim());
+    const hasFirstComment = Boolean(el.postFirstCommentCheck && el.postFirstCommentCheck.checked && String(meta.firstComment || '').trim().length > 10);
 
     const checks = [
       {
-        ok: cleanTitle.length >= 25 && cleanTitle.length <= 70 && !hasFilePrefix,
-        weight: 20,
-        label: hasFilePrefix ? 'أزل الترقيم من بداية العنوان' : 'عنوان جذّاب بدون ترقيم (25–70 حرفاً)'
+        ok: cleanTitle.length >= 20 && cleanTitle.length <= 72 && !hasFilePrefix,
+        weight: 18,
+        label: hasFilePrefix ? 'أزل الترقيم من بداية العنوان' : 'عنوان جذّاب بدون ترقيم (20–72 حرفاً)'
       },
       {
-        ok: cleanDesc.length >= 150,
-        weight: 15,
-        label: 'وصف غني بمقدمة مشوّقة وكلمات مفتاحية'
+        ok: cleanDesc.length >= (video.isShort ? 40 : 150),
+        weight: 12,
+        label: 'وصف مشوّق + كلمات مفتاحية قوية'
       },
       {
-        ok: hasChapters,
-        weight: 15,
-        label: 'فصول الفيديو (Chapters 00:00) مفعّلة'
+        ok: video.isShort ? /#shorts/i.test(`${cleanTitle} ${cleanDesc}`) : hasChapters,
+        weight: 12,
+        label: video.isShort ? 'وسم #Shorts مفعّل لتغذية الشورتس' : 'فصول الفيديو (Chapters 00:00) مفعّلة'
       },
       {
-        ok: tagsList.length >= 6,
-        weight: 15,
+        ok: tagsList.length >= 5,
+        weight: 12,
         label: `كلمات مفتاحية مركّزة (${tagsList.length} وسم)`
       },
       {
@@ -550,19 +629,29 @@
         label: `هاشتاقات مركّزة (${hashtags.length}/3)`
       },
       {
-        ok: Boolean(video.matchingThumbnail) && el.attachThumbnailCheck.checked,
-        weight: 15,
-        label: 'صورة مصغرة عالية التباين مرفقة'
+        ok: video.isShort ? true : hasSelectedThumb,
+        weight: 14,
+        label: video.isShort ? 'تنسيق Short سريع (بدون حاجة لصورة منفصلة)' : 'صورة مصغرة عالية التباين مرفقة'
       },
       {
-        ok: Boolean(video.matchingSubtitle) && (!el.attachSubtitleCheck || el.attachSubtitleCheck.checked),
+        ok: video.isShort ? true : (allSubs.length > 0 && (!el.attachSubtitleCheck || el.attachSubtitleCheck.checked)),
         weight: 10,
-        label: 'ترجمة عربية (.srt) لرفع البحث والاحتفاظ'
+        label: allSubs.length > 1 ? `ترجمات متعددة (${allSubs.map((s) => (s.language || 'ar').toUpperCase()).join(' + ')})` : 'ترجمة عربية (.srt) للبحث والاحتفاظ'
+      },
+      {
+        ok: hasPlaylist,
+        weight: 7,
+        label: 'ربط تلقائي بقائمة تشغيل السلسلة (Session Time)'
+      },
+      {
+        ok: hasFirstComment,
+        weight: 5,
+        label: 'أول تعليق تفاعلي جاهز لإشعال الساعة الأولى'
       },
       {
         ok: meta.categoryId === '27' || meta.categoryId === '28',
         weight: 5,
-        label: 'فئة مناسبة للوثائقيات (28 تقنية / 27 تعليم)'
+        label: 'فئة مثالية للوثائقيات (28 تقنية / 27 تعليم)'
       }
     ];
 
@@ -570,7 +659,12 @@
     return { score, checks };
   }
 
-  function computeNextPrimeTimeLocalInput() {
+  function formatDateLocalInput(dateObj) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+  }
+
+  function computeNextPrimeTimeLocalInput(offsetHours = 0) {
     // Next 21:00 (9:00 PM local time), at least 3 hours ahead so HD/4K processing finishes
     const now = new Date();
     const target = new Date(now.getTime());
@@ -578,8 +672,47 @@
     if (target.getTime() - now.getTime() < 3 * 60 * 60 * 1000) {
       target.setDate(target.getDate() + 1);
     }
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+    if (offsetHours) {
+      target.setTime(target.getTime() + offsetHours * 60 * 60 * 1000);
+    }
+    return formatDateLocalInput(target);
+  }
+
+  function scheduleFullViralCampaign() {
+    if (!state.videos.length) {
+      showAlert('لا توجد فيديوهات محمّلة حالياً للجدولة.', 'info');
+      return;
+    }
+    const ready = state.videos.filter((v) => !state.publishedMap[v.id]);
+    if (!ready.length) {
+      showAlert('جميع الفيديوهات الحالية منشورة بالفعل.', 'info');
+      return;
+    }
+
+    const longVideos = ready.filter((v) => !v.isShort);
+    const shortVideos = ready.filter((v) => v.isShort);
+
+    // Main video -> Next 9:00 PM prime time; additional long videos -> +72h each
+    longVideos.forEach((v, idx) => {
+      const meta = getVideoMeta(v);
+      meta.publishAt = computeNextPrimeTimeLocalInput(idx * 72);
+      meta.privacyStatus = 'private';
+    });
+
+    // Shorts -> Staggered +12h, +36h, +72h, +96h to keep feeding traffic back to the main video!
+    const shortOffsets = [12, 36, 72, 96, 120, 144];
+    shortVideos.forEach((v, idx) => {
+      const meta = getVideoMeta(v);
+      meta.publishAt = computeNextPrimeTimeLocalInput(shortOffsets[idx] || (idx + 1) * 24);
+      meta.privacyStatus = 'private';
+    });
+
+    renderVideos();
+    showAlert(
+      `📅 تم توزيع حملة إطلاق ذكية على ${longVideos.length} فيديو رئيسي (ذروة 9:00 م) و ${shortVideos.length} شورتس (مجدولة بعد +12 و +36 و +72 ساعة)!`,
+      'success'
+    );
+    addLog(`📅 تم تفعيل جدولة حملة الانتشار المليوني لـ ${ready.length} فيديو.`, 'success');
   }
 
   function autoOptimizeVideoMeta(video) {
@@ -674,14 +807,27 @@
           cardClass += ' failed';
         }
 
-        const thumbBadge = v.matchingThumbnail
-          ? `<span class="badge badge-thumb">🖼️ صورة مصغرة: ${escapeHtml(v.matchingThumbnail.name)}</span>`
+        const allThumbs = [v.matchingThumbnail, ...(v.alternativeThumbnails || [])].filter(Boolean);
+        const activeThumb = getSelectedThumbnail(v, meta);
+        const allSubs = Array.isArray(v.allSubtitles) && v.allSubtitles.length
+          ? v.allSubtitles
+          : v.matchingSubtitle ? [{ ...v.matchingSubtitle, language: 'ar', label: 'العربية' }] : [];
+
+        const typeBadge = v.isShort
+          ? `<span class="badge badge-short">⚡ Short / ريلز${v.durationSec ? ` • ${formatDuration(v.durationSec)}` : ''}</span>`
+          : `<span class="badge badge-long">🎬 فيديو طويل${v.durationSec ? ` • ${formatDuration(v.durationSec)}` : ''}${v.height ? ` • ${v.height}p` : ''}</span>`;
+
+        const thumbBadge = activeThumb
+          ? `<span class="badge badge-thumb">🖼️ ${allThumbs.length > 1 ? `${allThumbs.length} صور A/B — المختارة: ` : 'صورة مصغرة: '}${escapeHtml(activeThumb.name)}</span>`
           : '';
-        const subBadge = v.matchingSubtitle
-          ? `<span class="badge badge-sub">💬 ترجمة عربية: ${escapeHtml(v.matchingSubtitle.name)}</span>`
+        const subBadge = allSubs.length
+          ? `<span class="badge badge-sub">💬 ترجمة (${allSubs.map((s) => (s.language || 'ar').toUpperCase()).join(' + ')})</span>`
+          : '';
+        const globalBadge = v.englishMeta && v.englishMeta.title
+          ? `<span class="badge badge-global">🌍 ترجمة عالمية EN جاهزة</span>`
           : '';
         const packBadge = v.extractedMeta
-          ? `<span class="badge badge-pack">📝 تم تحميل الوصف والفصول والوسوم تلقائياً</span>`
+          ? `<span class="badge badge-pack">📝 حزمة النشر والفصول محمّلة</span>`
           : '';
 
         const algo = computeClientAlgoScore(v, meta);
@@ -689,13 +835,15 @@
           algo.score >= 85 ? 'badge-algo-high' : algo.score >= 65 ? 'badge-algo-mid' : 'badge-algo-low';
         const algoBadge = `<span class="badge ${algoBadgeClass}">📈 الخوارزمية: ${algo.score}/100</span>`;
 
-        const altTitles = v.extractedMeta && Array.isArray(v.extractedMeta.alternativeTitles)
+        const packAltTitles = v.extractedMeta && Array.isArray(v.extractedMeta.alternativeTitles)
           ? v.extractedMeta.alternativeTitles
           : [];
-        const altTitlesHtml = altTitles.length
+        const viralIdeas = Array.isArray(v.viralTitleIdeas) ? v.viralTitleIdeas : [];
+        const combinedTitles = Array.from(new Set([...packAltTitles, ...viralIdeas])).slice(0, 6);
+        const altTitlesHtml = combinedTitles.length
           ? `<div class="alt-titles-row">
-              <span class="muted small" style="width:100%;">💡 عناوين بديلة جاهزة للاختبار (اضغط لاختيار عنوان):</span>
-              ${altTitles
+              <span class="muted small" style="width:100%;">💡 مولّد العناوين المليونية + بدائل A/B (اضغط لتطبيق العنوان فوراً):</span>
+              ${combinedTitles
                 .map(
                   (alt) =>
                     `<button type="button" class="alt-title-chip" data-pick-title="${escapeHtml(v.id)}" data-title-val="${escapeHtml(alt)}">✨ ${escapeHtml(alt)}</button>`
@@ -704,13 +852,42 @@
             </div>`
           : '';
 
+        const thumbPickerHtml = allThumbs.length > 1
+          ? `<div class="field full">
+              <label>🖼️ تبديل الصورة المصغرة الأساسية قبل الرفع (تم اكتشاف ${allThumbs.length} نسخ A/B في المجلد):</label>
+              <div class="thumb-ab-picker">
+                ${allThumbs
+                  .map(
+                    (t, idx) =>
+                      `<button type="button" class="thumb-ab-chip ${activeThumb && activeThumb.id === t.id ? 'active' : ''}" data-pick-thumb="${escapeHtml(v.id)}" data-thumb-id="${escapeHtml(t.id)}">${idx === 0 ? '⭐ ' : '🧪 '}${escapeHtml(t.name)}</button>`
+                  )
+                  .join('')}
+              </div>
+            </div>`
+          : '';
+
+        const previewThumbUrl = (activeThumb && activeThumb.thumbnailLink) || v.thumbnailLink || '';
+        const ytPreviewHtml = `
+          <div class="yt-feed-preview full">
+            <div class="yt-preview-thumb">
+              ${previewThumbUrl ? `<img src="${escapeHtml(previewThumbUrl)}" alt="Thumbnail preview" />` : '<span>🖼️ معاينة يوتيوب</span>'}
+              ${v.durationSec ? `<span class="yt-preview-dur">${formatDuration(v.durationSec)}</span>` : ''}
+            </div>
+            <div class="yt-preview-info">
+              <div class="yt-preview-title">${escapeHtml(meta.title || v.suggestedTitle)}</div>
+              <div class="yt-preview-sub">${escapeHtml(state.channel ? state.channel.title : 'قناتك على يوتيوب')} • ${meta.publishAt ? `مجدول: ${escapeHtml(meta.publishAt.replace('T', ' '))}` : 'معاينة شكل الفيديو على هاتف المشاهد'}</div>
+              ${v.englishMeta && v.englishMeta.title ? `<div class="yt-preview-sub" style="color:#5eead4;">🌍 EN: ${escapeHtml(v.englishMeta.title)}</div>` : ''}
+            </div>
+          </div>`;
+
         const algoChecksHtml = `
           <div class="algo-panel full">
             <div class="algo-panel-head">
-              <strong>📈 فحص خوارزمية يوتيوب (${algo.score}/100)</strong>
+              <strong>🔥 فحص خوارزمية المليون مشاهدة (${algo.score}/100)</strong>
               <div class="video-actions">
-                <button type="button" class="btn btn-secondary btn-xs" data-optimize-algo="${escapeHtml(v.id)}">✨ تحسين تلقائي للخوارزمية</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-optimize-algo="${escapeHtml(v.id)}">✨ تحسين تلقائي</button>
                 <button type="button" class="btn btn-ghost btn-xs" data-prime-schedule="${escapeHtml(v.id)}">⏰ جدولة ذروة 9:00 م</button>
+                ${!v.isShort ? `<button type="button" class="btn btn-secondary btn-xs" data-open-clipper="${escapeHtml(v.id)}">✂️ قص شورت 9:16</button>` : ''}
               </div>
             </div>
             <div class="algo-checks">
@@ -749,7 +926,9 @@
         const editorHtml = meta.expanded
           ? `
           <div class="meta-editor" data-editor-for="${escapeHtml(v.id)}">
+            ${ytPreviewHtml}
             ${algoChecksHtml}
+            ${thumbPickerHtml}
             <div class="field full">
               <label>عنوان الفيديو على يوتيوب (${String(meta.title || '').length}/100 حرف — المثالي 40–65 حرفاً)</label>
               <input type="text" data-field="title" maxlength="100" value="${escapeHtml(meta.title)}" />
@@ -758,6 +937,10 @@
             <div class="field full">
               <label>الوصف (يشمل المقدمة + فصول الفيديو 00:00 + 3 هاشتاقات)</label>
               <textarea data-field="description" rows="6" placeholder="اكتب وصف الفيديو هنا...">${escapeHtml(meta.description)}</textarea>
+            </div>
+            <div class="field full">
+              <label>💬 التعليق التفاعلي الأول (يُنشر تلقائياً عند النشر العام لإشعال تفاعل الساعة الأولى)</label>
+              <textarea data-field="firstComment" rows="2" placeholder="اكتب سؤالاً مثيراً للنقاش لتثبيته في التعليقات...">${escapeHtml(meta.firstComment || '')}</textarea>
             </div>
             <div class="field">
               <label>الوسوم / الكلمات المفتاحية (مفصولة بفاصلة)</label>
@@ -806,15 +989,18 @@
               </div>
               <div class="video-meta-line">
                 ${badgeHtml}
+                ${typeBadge}
                 ${algoBadge}
                 ${packBadge}
                 ${thumbBadge}
                 ${subBadge}
+                ${globalBadge}
               </div>
             </div>
             <div class="video-actions">
+              ${!v.isShort ? `<button class="btn btn-secondary btn-xs" type="button" data-open-clipper="${escapeHtml(v.id)}">✂️ قص شورت 9:16</button>` : ''}
               <button class="btn btn-ghost btn-xs" type="button" data-toggle-edit="${escapeHtml(v.id)}">
-                ${meta.expanded ? '▲ إغلاق الخوارزمية' : '📈 تحسين وتفاصيل'}
+                ${meta.expanded ? '▲ إغلاق الاستوديو' : '🔥 استوديو الخوارزمية'}
               </button>
               <button class="btn btn-primary btn-xs" type="button" data-publish-one="${escapeHtml(v.id)}" ${st.status === 'uploading' || state.isUploading ? 'disabled' : ''}>
                 ${st.status === 'published' ? '🔁 إعادة الرفع' : '🚀 رفع ليوتيوب'}
@@ -951,9 +1137,16 @@
           categoryId: initRes.metadata.snippet.categoryId,
           madeForKids: initRes.metadata.status.selfDeclaredMadeForKids,
           attachThumbnail: el.attachThumbnailCheck.checked,
-          matchingThumbnail: video.matchingThumbnail,
+          matchingThumbnail: getSelectedThumbnail(video, meta),
           attachSubtitle: el.attachSubtitleCheck ? el.attachSubtitleCheck.checked : true,
           matchingSubtitle: video.matchingSubtitle,
+          allSubtitles: video.allSubtitles || [],
+          applyEnglishLocalization: el.applyEnglishLocCheck ? el.applyEnglishLocCheck.checked : true,
+          englishMeta: video.englishMeta || null,
+          addToPlaylist: el.addToPlaylistCheck ? el.addToPlaylistCheck.checked : true,
+          playlistTitle: el.playlistTitleInput ? el.playlistTitleInput.value.trim() : '',
+          postFirstComment: el.postFirstCommentCheck ? el.postFirstCommentCheck.checked : true,
+          firstComment: meta.firstComment || '',
           language: 'ar',
           moveToPublished: el.moveToPublishedCheck.checked,
           sourceFolderId,
@@ -983,8 +1176,17 @@
       if (completeRes.thumbnailUploaded) {
         addLog('🖼️ تم رفع الصورة المصغرة تلقائياً بنجاح.', 'success');
       }
-      if (completeRes.subtitleUploaded) {
-        addLog('💬 تم رفع ملف الترجمة العربية (.srt) تلقائياً بنجاح (تحسين البحث والاحتفاظ).', 'success');
+      if (completeRes.uploadedSubtitles && completeRes.uploadedSubtitles.length > 0) {
+        addLog(`💬 تم رفع الترجمات (${completeRes.uploadedSubtitles.map((l) => l.toUpperCase()).join(' + ')}) تلقائياً بنجاح.`, 'success');
+      }
+      if (completeRes.localizedEn) {
+        addLog('🌍 تم إضافة العنوان والوصف بالإنجليزية للانتشار العالمي بنجاح.', 'success');
+      }
+      if (completeRes.playlistLinked) {
+        addLog(`📚 تم ربط الفيديو بقائمة التشغيل: "${completeRes.playlistLinked.title}".`, 'success');
+      }
+      if (completeRes.commentPosted) {
+        addLog('🔥 تم نشر التعليق التفاعلي الأول تلقائياً لرفع سرعة التفاعل!', 'success');
       }
       if (completeRes.warnings && completeRes.warnings.length > 0) {
         addLog(`تنبيه: ${completeRes.warnings.join(' | ')}`, 'warn');
@@ -1204,6 +1406,24 @@
         return;
       }
 
+      const pickThumbBtn = e.target.closest('[data-pick-thumb]');
+      if (pickThumbBtn) {
+        const vid = state.videos.find((v) => v.id === pickThumbBtn.dataset.pickThumb);
+        if (!vid) return;
+        const meta = getVideoMeta(vid);
+        meta.selectedThumbnailId = pickThumbBtn.dataset.thumbId || '';
+        renderVideos();
+        showAlert('🖼️ تم تبديل الصورة المصغرة الأساسية بنجاح!', 'success');
+        return;
+      }
+
+      const clipBtn = e.target.closest('[data-open-clipper]');
+      if (clipBtn) {
+        const vid = state.videos.find((v) => v.id === clipBtn.dataset.openClipper);
+        if (vid) openViralClipper(vid);
+        return;
+      }
+
       const pubBtn = e.target.closest('[data-publish-one]');
       if (pubBtn && !state.isUploading) {
         const vidId = pubBtn.dataset.publishOne;
@@ -1261,11 +1481,21 @@
       el.moveToPublishedCheck,
       el.attachThumbnailCheck,
       el.attachSubtitleCheck,
+      el.applyEnglishLocCheck,
+      el.addToPlaylistCheck,
+      el.playlistTitleInput,
+      el.postFirstCommentCheck,
       el.logToSheetCheck
     ].filter(Boolean).forEach((node) => {
       node.addEventListener('change', () => {
         saveSettings();
-        if (node === el.attachThumbnailCheck || node === el.attachSubtitleCheck) {
+        if (
+          node === el.attachThumbnailCheck ||
+          node === el.attachSubtitleCheck ||
+          node === el.addToPlaylistCheck ||
+          node === el.postFirstCommentCheck ||
+          node === el.playlistTitleInput
+        ) {
           renderVideos();
         }
         if (node === el.intervalSelect && state.autoEnabled) {
@@ -1274,9 +1504,428 @@
       });
     });
 
+    if (el.scheduleCampaignBtn) {
+      el.scheduleCampaignBtn.addEventListener('click', scheduleFullViralCampaign);
+    }
+
     el.clearLogsBtn.addEventListener('click', () => {
       el.activityLog.innerHTML = '';
     });
+
+    bindClipperEvents();
+  }
+
+  // ============================================================================
+  // Built-in 9:16 Viral Short Clipper & Direct YouTube Uploader
+  // ============================================================================
+
+  const clipper = {
+    video: null,
+    isRecording: false,
+    isPreviewing: false,
+    rafId: null,
+    recorder: null,
+    recordedBlob: null,
+    recordedUrl: '',
+    audioCtx: null,
+    audioSource: null,
+    audioDest: null
+  };
+
+  function drawClipperFrame(progressRatio = 0) {
+    const canvas = el.clipperCanvas;
+    const vidEl = el.clipperSourceVideo;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // 1. Deep midnight-teal backdrop + blurred video bleed
+    ctx.fillStyle = '#091522';
+    ctx.fillRect(0, 0, W, H);
+
+    if (vidEl && vidEl.readyState >= 2 && vidEl.videoWidth > 0) {
+      ctx.save();
+      ctx.filter = 'blur(18px) brightness(0.45)';
+      const bgScale = Math.max(W / vidEl.videoWidth, H / vidEl.videoHeight);
+      const bw = vidEl.videoWidth * bgScale;
+      const bh = vidEl.videoHeight * bgScale;
+      ctx.drawImage(vidEl, (W - bw) / 2, (H - bh) / 2, bw, bh);
+      ctx.restore();
+
+      // 2. Crisp centered 16:9 video frame with golden documentary frame
+      const fgW = W - 24;
+      const fgH = Math.round(fgW * (vidEl.videoHeight / vidEl.videoWidth));
+      const fgX = 12;
+      const fgY = Math.round((H - fgH) / 2) + 20;
+
+      ctx.fillStyle = 'rgba(245, 176, 65, 0.88)';
+      ctx.fillRect(fgX - 3, fgY - 3, fgW + 6, fgH + 6);
+      ctx.drawImage(vidEl, fgX, fgY, fgW, fgH);
+    }
+
+    // 3. Top Viral Hook Banner (wrapped Arabic text)
+    const hookText = (el.clipHookInput && el.clipHookInput.value.trim()) || '';
+    if (hookText) {
+      ctx.fillStyle = 'rgba(11, 21, 34, 0.84)';
+      ctx.fillRect(20, 44, W - 40, 134);
+      ctx.strokeStyle = 'rgba(245, 176, 65, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(20, 44, W - 40, 134);
+
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = 'bold 26px "Cairo", "Segoe UI", Tahoma, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.direction = 'rtl';
+
+      const words = hookText.split(/\s+/);
+      const lines = [];
+      let line = '';
+      for (const w of words) {
+        const test = line ? `${line} ${w}` : w;
+        if (ctx.measureText(test).width > W - 76 && line) {
+          lines.push(line);
+          line = w;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines.push(line);
+      const showLines = lines.slice(0, 3);
+      const startY = 112 - ((showLines.length - 1) * 34) / 2;
+      showLines.forEach((ln, idx) => {
+        ctx.fillText(ln, W / 2, startY + idx * 34);
+      });
+    }
+
+    // 4. Bottom CTA + Channel watermark + Animated Progress Bar
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.font = 'bold 20px "Cairo", "Segoe UI", Tahoma, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('👆 شاهد القصة الكاملة من الرابط أسفل الشاشة', W / 2, H - 72);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.fillRect(28, H - 40, W - 56, 8);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(28, H - 40, Math.max(0, Math.min(1, progressRatio)) * (W - 56), 8);
+  }
+
+  function stopClipperPlayback() {
+    if (clipper.rafId) {
+      cancelAnimationFrame(clipper.rafId);
+      clipper.rafId = null;
+    }
+    clipper.isPreviewing = false;
+    if (el.clipperSourceVideo) {
+      el.clipperSourceVideo.pause();
+    }
+    if (clipper.recorder && clipper.recorder.state === 'recording') {
+      clipper.recorder.stop();
+    }
+    clipper.isRecording = false;
+    if (el.clipperStopBtn) el.clipperStopBtn.classList.add('hidden');
+    if (el.clipperRenderBtn) el.clipperRenderBtn.disabled = false;
+  }
+
+  function applyClipPreset(clip, video) {
+    const mainPub = state.publishedMap[video.id];
+    el.clipStartInput.value = String(Math.max(0, Number(clip.startSec || 0)));
+    el.clipEndInput.value = String(Math.min(Number(clip.startSec || 0) + 58, Number(clip.endSec || 48)));
+    el.clipHookInput.value = clip.hookText || '';
+    el.clipTitleInput.value = clip.title || `${video.suggestedTitle} #Shorts`;
+    el.clipDescInput.value =
+      `${clip.hookText || video.suggestedTitle}\n\n` +
+      (mainPub && mainPub.youtubeUrl ? `🎬 شاهد الحلقة الكاملة من هنا:\n${mainPub.youtubeUrl}\n\n` : '🎬 شاهد الحلقة الكاملة على القناة 👇\n\n') +
+      '#Shorts #نقش #ماذا_لو';
+    el.clipScheduleInput.value = computeNextPrimeTimeLocalInput(12);
+    if (el.clipperSourceVideo && el.clipperSourceVideo.readyState >= 1) {
+      el.clipperSourceVideo.currentTime = Number(el.clipStartInput.value || 0);
+    }
+    drawClipperFrame(0);
+  }
+
+  function openViralClipper(video) {
+    stopClipperPlayback();
+    clipper.video = video;
+    clipper.recordedBlob = null;
+    if (clipper.recordedUrl) {
+      URL.revokeObjectURL(clipper.recordedUrl);
+      clipper.recordedUrl = '';
+    }
+
+    el.clipperVideoName.textContent = `${video.suggestedTitle} (${video.name})`;
+    el.clipperOutputBox.classList.add('hidden');
+    el.clipperUploadProgress.classList.add('hidden');
+    el.clipperStatusBox.textContent = 'جاري تحميل دفق الفيديو من Google Drive للقص المباشر...';
+
+    const clips = Array.isArray(video.viralClips) && video.viralClips.length
+      ? video.viralClips
+      : [
+          {
+            id: 'default-1',
+            label: 'شورت #1 — أول 50 ثانية',
+            startSec: 0,
+            endSec: 50,
+            hookText: video.suggestedTitle,
+            title: `${video.suggestedTitle} #Shorts`
+          }
+        ];
+
+    el.clipperPresets.innerHTML = clips
+      .map(
+        (c, i) =>
+          `<button type="button" class="alt-title-chip" data-clip-preset-idx="${i}">🔥 ${escapeHtml(c.label)} (${formatDuration(c.startSec)} → ${formatDuration(c.endSec)})</button>`
+      )
+      .join('');
+
+    applyClipPreset(clips[0], video);
+
+    // Load authenticated Range stream from /api/drive/stream
+    el.clipperSourceVideo.src = `/api/drive/stream?fileId=${encodeURIComponent(video.id)}`;
+    el.clipperSourceVideo.load();
+    el.clipperModal.classList.remove('hidden');
+  }
+
+  async function runClipperPreviewOrRecord(recordMode) {
+    if (!clipper.video) return;
+    stopClipperPlayback();
+
+    const startSec = Math.max(0, Number(el.clipStartInput.value || 0));
+    let endSec = Math.max(startSec + 5, Number(el.clipEndInput.value || startSec + 45));
+    if (endSec - startSec > 59) {
+      endSec = startSec + 58;
+      el.clipEndInput.value = String(endSec);
+    }
+    const duration = endSec - startSec;
+    const vidEl = el.clipperSourceVideo;
+
+    el.clipperStatusBox.textContent = 'جاري الانتقال إلى ثانية البداية...';
+    await new Promise((resolve) => {
+      const onSeeked = () => {
+        vidEl.removeEventListener('seeked', onSeeked);
+        resolve();
+      };
+      vidEl.addEventListener('seeked', onSeeked);
+      vidEl.currentTime = startSec;
+      setTimeout(resolve, 2500);
+    });
+
+    if (recordMode) {
+      if (typeof MediaRecorder === 'undefined') {
+        showAlert('متصفحك لا يدعم MediaRecorder للقص المباشر — استخدم Chrome أو Edge.', 'error');
+        return;
+      }
+      const chunks = [];
+      const canvasStream = el.clipperCanvas.captureStream(30);
+      const tracks = [...canvasStream.getVideoTracks()];
+
+      // Attach audio track from the source video so the Short has crystal-clear narration!
+      try {
+        if (!clipper.audioCtx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          clipper.audioCtx = new AudioCtx();
+          clipper.audioSource = clipper.audioCtx.createMediaElementSource(vidEl);
+          clipper.audioDest = clipper.audioCtx.createMediaStreamDestination();
+          clipper.audioSource.connect(clipper.audioDest);
+          clipper.audioSource.connect(clipper.audioCtx.destination);
+        }
+        if (clipper.audioCtx.state === 'suspended') {
+          await clipper.audioCtx.resume();
+        }
+        clipper.audioDest.stream.getAudioTracks().forEach((t) => tracks.push(t));
+      } catch {
+        // Fallback: video-only if audio graph is restricted
+      }
+
+      const combinedStream = new MediaStream(tracks);
+      const preferredMime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((m) =>
+        MediaRecorder.isTypeSupported(m)
+      );
+      clipper.recorder = new MediaRecorder(
+        combinedStream,
+        preferredMime ? { mimeType: preferredMime, videoBitsPerSecond: 4500000 } : undefined
+      );
+
+      clipper.recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+      };
+      clipper.recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: clipper.recorder.mimeType || 'video/webm' });
+        clipper.recordedBlob = blob;
+        if (clipper.recordedUrl) URL.revokeObjectURL(clipper.recordedUrl);
+        clipper.recordedUrl = URL.createObjectURL(blob);
+        el.clipperResultVideo.src = clipper.recordedUrl;
+        el.clipperDownloadLink.href = clipper.recordedUrl;
+        const safeName = (el.clipTitleInput.value || 'viral-short').replace(/[^\u0600-\u06FFa-zA-Z0-9_-]+/g, '-').slice(0, 40);
+        el.clipperDownloadLink.download = `${safeName}-9x16.webm`;
+        el.clipperOutputBox.classList.remove('hidden');
+        const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
+        el.clipperStatusBox.textContent = `✅ تم تجهيز الشورت العمودي 9:16 بنجاح (${sizeMb} MB) — جاهز للرفع المباشر إلى يوتيوب!`;
+      };
+
+      clipper.isRecording = true;
+      el.clipperRenderBtn.disabled = true;
+      el.clipperStopBtn.classList.remove('hidden');
+      el.clipperOutputBox.classList.add('hidden');
+      clipper.recorder.start(250);
+      el.clipperStatusBox.textContent = `🔴 جاري قص وتصيير الشورت 9:16 (${duration} ثانية)...`;
+    } else {
+      clipper.isPreviewing = true;
+      el.clipperStatusBox.textContent = '▶️ معاينة حية للشورت العمودي 9:16...';
+    }
+
+    await vidEl.play();
+
+    const tick = () => {
+      const elapsed = Math.max(0, vidEl.currentTime - startSec);
+      const ratio = duration > 0 ? elapsed / duration : 0;
+      drawClipperFrame(ratio);
+
+      if (vidEl.currentTime >= endSec || vidEl.ended) {
+        stopClipperPlayback();
+        return;
+      }
+      if (clipper.isRecording || clipper.isPreviewing) {
+        clipper.rafId = requestAnimationFrame(tick);
+      }
+    };
+    clipper.rafId = requestAnimationFrame(tick);
+  }
+
+  async function uploadClippedShortToYouTube() {
+    if (!clipper.recordedBlob || !state.connected) {
+      showAlert('قم بقص وتجهيز الشورت أولاً قبل الرفع.', 'error');
+      return;
+    }
+
+    const blob = clipper.recordedBlob;
+    const totalSize = blob.size;
+    const mimeType = blob.type && blob.type.startsWith('video/') ? blob.type.split(';')[0] : 'video/webm';
+    const title = (el.clipTitleInput.value || 'شورت فيروسي #Shorts').trim();
+    const description = (el.clipDescInput.value || `${title}\n#Shorts`).trim();
+    const privacyStatus = el.clipPrivacySelect.value || 'private';
+    const publishAt = el.clipScheduleInput.value ? new Date(el.clipScheduleInput.value).toISOString() : '';
+
+    el.clipperUploadYtBtn.disabled = true;
+    el.clipperUploadProgress.classList.remove('hidden');
+    el.clipperUploadBar.style.width = '5%';
+    el.clipperUploadText.textContent = 'جاري إنشاء جلسة رفع الشورت على يوتيوب...';
+    el.clipperUploadPct.textContent = '5%';
+
+    try {
+      const initRes = await apiFetch('/api/upload/init-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: 'viral-short-9x16.webm',
+          fileSize: totalSize,
+          mimeType,
+          title,
+          description,
+          tags: 'Shorts، نقش، ماذا لو، وثائقي قصير',
+          privacyStatus,
+          publishAt,
+          categoryId: '28',
+          madeForKids: false,
+          language: 'ar'
+        })
+      });
+
+      const chunkSize = 2 * 1024 * 1024; // 2 MB multiple of 256 KiB (safe for Vercel)
+      let offset = 0;
+      let videoId = null;
+
+      while (offset < totalSize) {
+        const end = Math.min(offset + chunkSize - 1, totalSize - 1);
+        const slice = blob.slice(offset, end + 1);
+        const resp = await fetch('/api/upload/chunk-direct', {
+          method: 'POST',
+          headers: authHeaders({
+            'Content-Type': 'application/octet-stream',
+            'x-upload-uri': initRes.uploadUri,
+            'x-start': String(offset),
+            'x-end': String(end),
+            'x-total-size': String(totalSize),
+            'x-mime-type': mimeType
+          }),
+          body: slice
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+
+        const pct = data.done ? 95 : Math.min(92, Math.max(10, data.percent || Math.round(((end + 1) / totalSize) * 90)));
+        el.clipperUploadBar.style.width = `${pct}%`;
+        el.clipperUploadPct.textContent = `${pct}%`;
+        el.clipperUploadText.textContent = `جاري رفع الشورت إلى يوتيوب (${Math.round(((end + 1) / (1024 * 1024)) * 10) / 10} MB)...`;
+
+        if (data.done && data.videoId) {
+          videoId = data.videoId;
+          break;
+        }
+        offset = data.nextOffset;
+      }
+
+      if (!videoId) throw new Error('لم يرجع يوتيوب معرف الشورت.');
+
+      const completeRes = await apiFetch('/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId,
+          fileId: '',
+          fileName: 'viral-short-9x16.webm',
+          fileSize: totalSize,
+          title,
+          description,
+          tags: ['Shorts', 'نقش', 'ماذا لو'],
+          privacyStatus: initRes.metadata.status.privacyStatus,
+          publishAt: initRes.metadata.status.publishAt || '',
+          categoryId: '28',
+          addToPlaylist: el.addToPlaylistCheck ? el.addToPlaylistCheck.checked : true,
+          playlistTitle: el.playlistTitleInput ? el.playlistTitleInput.value.trim() : '',
+          logToSheet: el.logToSheetCheck.checked,
+          spreadsheetId: state.health.defaults.SPREADSHEET_ID
+        })
+      });
+
+      el.clipperUploadBar.style.width = '100%';
+      el.clipperUploadPct.textContent = '100%';
+      el.clipperUploadText.textContent = '✅ تم نشر الشورت على يوتيوب بنجاح!';
+      showAlert(`🚀 تم قص ورفع الشورت «${title}» مباشرة على قناتك في يوتيوب!`, 'success');
+      addLog(`⚡ تم قص ورفع شورت 9:16 بنجاح: ${completeRes.youtubeUrl}`, 'success');
+    } catch (err) {
+      showAlert(`❌ فشل رفع الشورت: ${err.message}`, 'error');
+      addLog(`❌ فشل رفع الشورت: ${err.message}`, 'error');
+      el.clipperUploadText.textContent = `❌ ${err.message}`;
+    } finally {
+      el.clipperUploadYtBtn.disabled = false;
+    }
+  }
+
+  function bindClipperEvents() {
+    if (!el.clipperModal) return;
+    el.closeClipperBtn.addEventListener('click', () => {
+      stopClipperPlayback();
+      el.clipperModal.classList.add('hidden');
+    });
+    el.clipperPresets.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-clip-preset-idx]');
+      if (!btn || !clipper.video) return;
+      const idx = Number(btn.dataset.clipPresetIdx);
+      const clips = clipper.video.viralClips || [];
+      if (clips[idx]) applyClipPreset(clips[idx], clipper.video);
+    });
+    el.clipperSourceVideo.addEventListener('loadeddata', () => {
+      el.clipperStatusBox.textContent = '✅ الفيديو جاهز! اضغط «معاينة» أو «قص وتجهيز الشورت (9:16)».';
+      el.clipperSourceVideo.currentTime = Number(el.clipStartInput.value || 0);
+      drawClipperFrame(0);
+    });
+    el.clipperSourceVideo.addEventListener('seeked', () => drawClipperFrame(0));
+    el.clipHookInput.addEventListener('input', () => drawClipperFrame(0));
+    el.clipperPreviewBtn.addEventListener('click', () => runClipperPreviewOrRecord(false));
+    el.clipperRenderBtn.addEventListener('click', () => runClipperPreviewOrRecord(true));
+    el.clipperStopBtn.addEventListener('click', stopClipperPlayback);
+    el.clipperUploadYtBtn.addEventListener('click', uploadClippedShortToYouTube);
   }
 
   init();

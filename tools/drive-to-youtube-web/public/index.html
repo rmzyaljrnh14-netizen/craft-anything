@@ -239,13 +239,37 @@
 
             <label class="check-row">
               <input id="attachSubtitleCheck" type="checkbox" checked />
-              <span>💬 رفع الترجمة العربية (<code>.srt</code>) تلقائياً لرفع البحث والاحتفاظ</span>
+              <span>💬 رفع جميع الترجمات (<code>.srt</code> العربية + الإنجليزية) تلقائياً</span>
+            </label>
+
+            <label class="check-row">
+              <input id="applyEnglishLocCheck" type="checkbox" checked />
+              <span>🌍 إضافة العنوان والوصف بالإنجليزية للانتشار العالمي</span>
+            </label>
+
+            <label class="check-row">
+              <input id="addToPlaylistCheck" type="checkbox" checked />
+              <span>📚 إضافة الفيديو تلقائياً لقائمة تشغيل السلسلة (Session Time)</span>
+            </label>
+
+            <div class="field">
+              <label for="playlistTitleInput">اسم قائمة التشغيل التلقائية</label>
+              <input id="playlistTitleInput" type="text" value="سلسلة نَقْش | ماذا لو؟ — وثائقيات معرفية" placeholder="اسم قائمة التشغيل على قناتك..." />
+            </div>
+
+            <label class="check-row">
+              <input id="postFirstCommentCheck" type="checkbox" checked />
+              <span>🔥 نشر أول تعليق تحفيزي تلقائياً عند النشر العام</span>
             </label>
 
             <label class="check-row">
               <input id="logToSheetCheck" type="checkbox" checked />
               <span>تسجيل رابط يوتيوب في جدول Google Sheets تلقائياً</span>
             </label>
+
+            <button id="scheduleCampaignBtn" class="btn btn-secondary btn-sm" type="button" disabled style="width:100%;margin-top:4px;">
+              📅 جدولة حملة إطلاق متكاملة (الرئيسي + الشورتس)
+            </button>
           </div>
         </div>
 
@@ -264,6 +288,90 @@
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- Built-in 9:16 Viral Short Slicer & Direct YouTube Uploader Modal -->
+  <div id="clipperModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="clipperModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="clipperModalTitle">✂️ استوديو قص الشورتس المليوني (9:16)</h3>
+          <p id="clipperVideoName" class="muted small"></p>
+        </div>
+        <button id="closeClipperBtn" class="btn btn-ghost btn-xs" type="button">✕ إغلاق</button>
+      </div>
+
+      <div class="clipper-presets" id="clipperPresets"></div>
+
+      <div class="clipper-grid">
+        <div class="clipper-preview-col">
+          <div class="clipper-stage">
+            <canvas id="clipperCanvas" width="540" height="960"></canvas>
+            <video id="clipperSourceVideo" crossorigin="anonymous" playsinline style="display:none;"></video>
+          </div>
+          <div class="clipper-controls-row">
+            <button id="clipperPreviewBtn" class="btn btn-secondary btn-xs" type="button">▶️ معاينة المقطع</button>
+            <button id="clipperRenderBtn" class="btn btn-primary btn-xs" type="button">🎬 قص وتجهيز الشورت (9:16)</button>
+            <button id="clipperStopBtn" class="btn btn-ghost btn-xs hidden" type="button">⏹ إيقاف مبكر</button>
+          </div>
+          <div id="clipperStatusBox" class="muted small" style="text-align:center;">اختر أحد المشاهد الفيروسية المقترحة أو حدد التوقيت واضغط «قص وتجهيز الشورت».</div>
+          <div id="clipperOutputBox" class="clipper-output hidden">
+            <video id="clipperResultVideo" controls playsinline></video>
+            <div class="clipper-controls-row">
+              <button id="clipperUploadYtBtn" class="btn btn-primary btn-sm" type="button">🚀 رفع الشورت مباشرة إلى يوتيوب</button>
+              <a id="clipperDownloadLink" class="btn btn-secondary btn-sm" download="viral-short.webm">⬇️ تحميل الملف</a>
+            </div>
+            <div id="clipperUploadProgress" class="progress-wrap hidden">
+              <div class="progress-bar-bg"><div id="clipperUploadBar" class="progress-bar-fill" style="width:0%"></div></div>
+              <div class="progress-label"><span id="clipperUploadText">جاري رفع الشورت...</span><span id="clipperUploadPct">0%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="clipper-form-col form-stack compact">
+          <div class="field-row-2">
+            <div class="field">
+              <label for="clipStartInput">البداية (ثانية)</label>
+              <input id="clipStartInput" type="number" min="0" step="1" value="0" />
+            </div>
+            <div class="field">
+              <label for="clipEndInput">النهاية (ثانية — بحد أقصى 59 ثانية)</label>
+              <input id="clipEndInput" type="number" min="5" step="1" value="48" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="clipHookInput">نص الخطاف الجاذب أعلى الشورت (يظهر في أول ثانيتين 🔥)</label>
+            <input id="clipHookInput" type="text" maxlength="80" placeholder="الساعة 6:07 صباحاً… طائرة ابنها تجمّدت فوق البحر ✈️" />
+          </div>
+
+          <div class="field">
+            <label for="clipTitleInput">عنوان الشورت على يوتيوب (يشمل #Shorts)</label>
+            <input id="clipTitleInput" type="text" maxlength="100" />
+          </div>
+
+          <div class="field">
+            <label for="clipDescInput">وصف الشورت (يربط المشاهد بالحلقة الكاملة)</label>
+            <textarea id="clipDescInput" rows="4"></textarea>
+          </div>
+
+          <div class="field-row-2">
+            <div class="field">
+              <label for="clipPrivacySelect">الخصوصية</label>
+              <select id="clipPrivacySelect">
+                <option value="private">خاص / مجدول (Private)</option>
+                <option value="unlisted">غير مدرج (Unlisted)</option>
+                <option value="public">عام مباشرة (Public)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="clipScheduleInput">جدولة الشورت (اختياري)</label>
+              <input id="clipScheduleInput" type="datetime-local" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/studio.js"></script>
