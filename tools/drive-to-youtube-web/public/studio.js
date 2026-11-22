@@ -67,6 +67,7 @@
     chunkSizeSelect: document.getElementById('chunkSizeSelect'),
     moveToPublishedCheck: document.getElementById('moveToPublishedCheck'),
     attachThumbnailCheck: document.getElementById('attachThumbnailCheck'),
+    attachSubtitleCheck: document.getElementById('attachSubtitleCheck'),
     logToSheetCheck: document.getElementById('logToSheetCheck'),
     activityLog: document.getElementById('activityLog'),
     clearLogsBtn: document.getElementById('clearLogsBtn')
@@ -88,6 +89,7 @@
       chunkSizeMb: Number(el.chunkSizeSelect.value || 8),
       moveToPublished: el.moveToPublishedCheck.checked,
       attachThumbnail: el.attachThumbnailCheck.checked,
+      attachSubtitle: el.attachSubtitleCheck ? el.attachSubtitleCheck.checked : true,
       logToSheet: el.logToSheetCheck.checked
     };
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cfg));
@@ -101,6 +103,9 @@
     if (cfg.chunkSizeMb) el.chunkSizeSelect.value = String(cfg.chunkSizeMb);
     if (typeof cfg.moveToPublished === 'boolean') el.moveToPublishedCheck.checked = cfg.moveToPublished;
     if (typeof cfg.attachThumbnail === 'boolean') el.attachThumbnailCheck.checked = cfg.attachThumbnail;
+    if (typeof cfg.attachSubtitle === 'boolean' && el.attachSubtitleCheck) {
+      el.attachSubtitleCheck.checked = cfg.attachSubtitle;
+    }
     if (typeof cfg.logToSheet === 'boolean') el.logToSheetCheck.checked = cfg.logToSheet;
   }
 
@@ -492,18 +497,139 @@
 
   function getVideoMeta(video) {
     if (!state.videoEdits[video.id]) {
+      const ext = video.extractedMeta || null;
       state.videoEdits[video.id] = {
-        title: video.suggestedTitle,
-        description: '',
-        tags: '',
+        title: (ext && ext.title) || video.suggestedTitle,
+        description: (ext && ext.description) || '',
+        tags: (ext && ext.tagsText) || '',
         privacyStatus: el.defaultPrivacySelect.value || 'private',
         publishAt: '',
-        categoryId: '22',
+        categoryId: (ext && ext.categoryId) || video.suggestedCategoryId || '27',
         madeForKids: false,
         expanded: false
       };
     }
     return state.videoEdits[video.id];
+  }
+
+  function computeClientAlgoScore(video, meta) {
+    const cleanTitle = String(meta.title || '').trim();
+    const cleanDesc = String(meta.description || '').trim();
+    const tagsList = String(meta.tags || '')
+      .split(/[,،\n]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const hashtags = cleanDesc.match(/#[^\s#]+/g) || [];
+    const hasChapters = /\b0?0:00\b/.test(cleanDesc);
+    const hasFilePrefix = /^\d{1,3}\s*[—–\-_.]/.test(cleanTitle);
+
+    const checks = [
+      {
+        ok: cleanTitle.length >= 25 && cleanTitle.length <= 70 && !hasFilePrefix,
+        weight: 20,
+        label: hasFilePrefix ? 'أزل الترقيم من بداية العنوان' : 'عنوان جذّاب بدون ترقيم (25–70 حرفاً)'
+      },
+      {
+        ok: cleanDesc.length >= 150,
+        weight: 15,
+        label: 'وصف غني بمقدمة مشوّقة وكلمات مفتاحية'
+      },
+      {
+        ok: hasChapters,
+        weight: 15,
+        label: 'فصول الفيديو (Chapters 00:00) مفعّلة'
+      },
+      {
+        ok: tagsList.length >= 6,
+        weight: 15,
+        label: `كلمات مفتاحية مركّزة (${tagsList.length} وسم)`
+      },
+      {
+        ok: hashtags.length >= 1 && hashtags.length <= 5,
+        weight: 5,
+        label: `هاشتاقات مركّزة (${hashtags.length}/3)`
+      },
+      {
+        ok: Boolean(video.matchingThumbnail) && el.attachThumbnailCheck.checked,
+        weight: 15,
+        label: 'صورة مصغرة عالية التباين مرفقة'
+      },
+      {
+        ok: Boolean(video.matchingSubtitle) && (!el.attachSubtitleCheck || el.attachSubtitleCheck.checked),
+        weight: 10,
+        label: 'ترجمة عربية (.srt) لرفع البحث والاحتفاظ'
+      },
+      {
+        ok: meta.categoryId === '27' || meta.categoryId === '28',
+        weight: 5,
+        label: 'فئة مناسبة للوثائقيات (28 تقنية / 27 تعليم)'
+      }
+    ];
+
+    const score = checks.reduce((s, c) => s + (c.ok ? c.weight : 0), 0);
+    return { score, checks };
+  }
+
+  function computeNextPrimeTimeLocalInput() {
+    // Next 21:00 (9:00 PM local time), at least 3 hours ahead so HD/4K processing finishes
+    const now = new Date();
+    const target = new Date(now.getTime());
+    target.setHours(21, 0, 0, 0);
+    if (target.getTime() - now.getTime() < 3 * 60 * 60 * 1000) {
+      target.setDate(target.getDate() + 1);
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+  }
+
+  function autoOptimizeVideoMeta(video) {
+    const meta = getVideoMeta(video);
+    const ext = video.extractedMeta || null;
+
+    // 1. Clean high-CTR title
+    let title = (ext && ext.title) || meta.title || video.suggestedTitle;
+    title = String(title)
+      .replace(/^\d{1,3}\s*[—–\-_.]+\s*/, '')
+      .replace(/\s*[—–\-|]+\s*(?:نَ?قْ?ش|حلقة|ep)\s*[\d٠-٩]+\s*$/i, '')
+      .trim();
+    meta.title = title;
+
+    // 2. Restore rich description from publishing pack if empty, or enrich hook + hashtags
+    if (!meta.description.trim() && ext && ext.description) {
+      meta.description = ext.description;
+    } else if (!meta.description.trim()) {
+      meta.description =
+        `${title}\n\n` +
+        'في هذه الحلقة نستكشف التفاصيل الخفية خطوة بخطوة بأسلوب بصري مشوّق.\n' +
+        'شاركونا رأيكم في التعليقات 👇\n\n' +
+        '#نقش #ماذا_لو #وثائقي';
+    } else if (!/#[^\s#]+/.test(meta.description)) {
+      meta.description = `${meta.description.trim()}\n\n#نقش #ماذا_لو #وثائقي`;
+    }
+
+    // 3. Tags from publishing pack + smart Arabic discovery tags
+    if (!meta.tags.trim() && ext && ext.tagsText) {
+      meta.tags = ext.tagsText;
+    } else if (!meta.tags.trim()) {
+      const words = title
+        .replace(/[؟?!.,،—–\-|()]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 3);
+      const baseTags = [title, ...words.slice(0, 6), 'وثائقي عربي', 'ماذا لو', 'قناة نقش', 'قصص معرفية'];
+      meta.tags = Array.from(new Set(baseTags)).join('، ');
+    }
+
+    // 4. Optimal category for documentaries/tech
+    const combined = `${meta.title} ${meta.tags} ${meta.description}`.toLowerCase();
+    meta.categoryId =
+      combined.includes('إنترنت') || combined.includes('انترنت') || combined.includes('ذكاء') || combined.includes('تقني')
+        ? '28'
+        : '27';
+
+    meta.expanded = true;
+    renderVideos();
+    showAlert('✨ تم تحسين العنوان والوصف والكلمات المفتاحية والفئة لخوارزمية يوتيوب!', 'success');
+    addLog(`✨ تم تحسين إعدادات خوارزمية يوتيوب للفيديو: ${meta.title}`, 'success');
   }
 
   function renderVideos() {
@@ -551,6 +677,51 @@
         const thumbBadge = v.matchingThumbnail
           ? `<span class="badge badge-thumb">🖼️ صورة مصغرة: ${escapeHtml(v.matchingThumbnail.name)}</span>`
           : '';
+        const subBadge = v.matchingSubtitle
+          ? `<span class="badge badge-sub">💬 ترجمة عربية: ${escapeHtml(v.matchingSubtitle.name)}</span>`
+          : '';
+        const packBadge = v.extractedMeta
+          ? `<span class="badge badge-pack">📝 تم تحميل الوصف والفصول والوسوم تلقائياً</span>`
+          : '';
+
+        const algo = computeClientAlgoScore(v, meta);
+        const algoBadgeClass =
+          algo.score >= 85 ? 'badge-algo-high' : algo.score >= 65 ? 'badge-algo-mid' : 'badge-algo-low';
+        const algoBadge = `<span class="badge ${algoBadgeClass}">📈 الخوارزمية: ${algo.score}/100</span>`;
+
+        const altTitles = v.extractedMeta && Array.isArray(v.extractedMeta.alternativeTitles)
+          ? v.extractedMeta.alternativeTitles
+          : [];
+        const altTitlesHtml = altTitles.length
+          ? `<div class="alt-titles-row">
+              <span class="muted small" style="width:100%;">💡 عناوين بديلة جاهزة للاختبار (اضغط لاختيار عنوان):</span>
+              ${altTitles
+                .map(
+                  (alt) =>
+                    `<button type="button" class="alt-title-chip" data-pick-title="${escapeHtml(v.id)}" data-title-val="${escapeHtml(alt)}">✨ ${escapeHtml(alt)}</button>`
+                )
+                .join('')}
+            </div>`
+          : '';
+
+        const algoChecksHtml = `
+          <div class="algo-panel full">
+            <div class="algo-panel-head">
+              <strong>📈 فحص خوارزمية يوتيوب (${algo.score}/100)</strong>
+              <div class="video-actions">
+                <button type="button" class="btn btn-secondary btn-xs" data-optimize-algo="${escapeHtml(v.id)}">✨ تحسين تلقائي للخوارزمية</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-prime-schedule="${escapeHtml(v.id)}">⏰ جدولة ذروة 9:00 م</button>
+              </div>
+            </div>
+            <div class="algo-checks">
+              ${algo.checks
+                .map(
+                  (c) =>
+                    `<div class="algo-check ${c.ok ? 'ok' : 'miss'}">${c.ok ? '✅' : '⚡'} ${escapeHtml(c.label)}</div>`
+                )
+                .join('')}
+            </div>
+          </div>`;
 
         const progressHtml =
           st.status === 'uploading'
@@ -578,37 +749,39 @@
         const editorHtml = meta.expanded
           ? `
           <div class="meta-editor" data-editor-for="${escapeHtml(v.id)}">
+            ${algoChecksHtml}
             <div class="field full">
-              <label>عنوان الفيديو على يوتيوب (بحد أقصى 100 حرف)</label>
+              <label>عنوان الفيديو على يوتيوب (${String(meta.title || '').length}/100 حرف — المثالي 40–65 حرفاً)</label>
               <input type="text" data-field="title" maxlength="100" value="${escapeHtml(meta.title)}" />
+              ${altTitlesHtml}
             </div>
             <div class="field full">
-              <label>الوصف</label>
-              <textarea data-field="description" placeholder="اكتب وصف الفيديو هنا...">${escapeHtml(meta.description)}</textarea>
+              <label>الوصف (يشمل المقدمة + فصول الفيديو 00:00 + 3 هاشتاقات)</label>
+              <textarea data-field="description" rows="6" placeholder="اكتب وصف الفيديو هنا...">${escapeHtml(meta.description)}</textarea>
             </div>
             <div class="field">
-              <label>الوسوم (مفصولة بفاصلة)</label>
-              <input type="text" data-field="tags" placeholder="تعليم، ثقافة، فيديو" value="${escapeHtml(meta.tags)}" />
+              <label>الوسوم / الكلمات المفتاحية (مفصولة بفاصلة)</label>
+              <input type="text" data-field="tags" placeholder="انقطاع الإنترنت، ماذا لو، وثائقي عربي" value="${escapeHtml(meta.tags)}" />
             </div>
             <div class="field">
               <label>الخصوصية</label>
               <select data-field="privacyStatus">
-                <option value="private" ${meta.privacyStatus === 'private' ? 'selected' : ''}>خاص (Private)</option>
+                <option value="private" ${meta.privacyStatus === 'private' ? 'selected' : ''}>خاص (Private — يُنصح به ساعتين قبل النشر للمعالجة HD)</option>
                 <option value="unlisted" ${meta.privacyStatus === 'unlisted' ? 'selected' : ''}>غير مدرج (Unlisted)</option>
                 <option value="public" ${meta.privacyStatus === 'public' ? 'selected' : ''}>عام (Public)</option>
               </select>
             </div>
             <div class="field">
-              <label>جدولة النشر (اختياري)</label>
+              <label>جدولة النشر (اختياري — يُنصح بذروة 7:00–9:00 م)</label>
               <input type="datetime-local" data-field="publishAt" value="${escapeHtml(meta.publishAt)}" />
             </div>
             <div class="field">
               <label>الفئة</label>
               <select data-field="categoryId">
+                <option value="28" ${meta.categoryId === '28' ? 'selected' : ''}>علوم وتقنية (28 — ممتاز لمحتوى الإنترنت والذكاء الاصطناعي)</option>
+                <option value="27" ${meta.categoryId === '27' ? 'selected' : ''}>تعليم (27 — ممتاز للوثائقيات والشروحات)</option>
                 <option value="22" ${meta.categoryId === '22' ? 'selected' : ''}>أشخاص ومدونات (22)</option>
-                <option value="27" ${meta.categoryId === '27' ? 'selected' : ''}>تعليم (27)</option>
                 <option value="24" ${meta.categoryId === '24' ? 'selected' : ''}>ترفيه (24)</option>
-                <option value="28" ${meta.categoryId === '28' ? 'selected' : ''}>علوم وتقنية (28)</option>
                 <option value="1" ${meta.categoryId === '1' ? 'selected' : ''}>أفلام ورسوم متحركة (1)</option>
                 <option value="20" ${meta.categoryId === '20' ? 'selected' : ''}>ألعاب فيديو (20)</option>
               </select>
@@ -633,12 +806,15 @@
               </div>
               <div class="video-meta-line">
                 ${badgeHtml}
+                ${algoBadge}
+                ${packBadge}
                 ${thumbBadge}
+                ${subBadge}
               </div>
             </div>
             <div class="video-actions">
               <button class="btn btn-ghost btn-xs" type="button" data-toggle-edit="${escapeHtml(v.id)}">
-                ${meta.expanded ? '▲ إغلاق التفاصيل' : '✏️ تعديل التفاصيل'}
+                ${meta.expanded ? '▲ إغلاق الخوارزمية' : '📈 تحسين وتفاصيل'}
               </button>
               <button class="btn btn-primary btn-xs" type="button" data-publish-one="${escapeHtml(v.id)}" ${st.status === 'uploading' || state.isUploading ? 'disabled' : ''}>
                 ${st.status === 'published' ? '🔁 إعادة الرفع' : '🚀 رفع ليوتيوب'}
@@ -776,6 +952,9 @@
           madeForKids: initRes.metadata.status.selfDeclaredMadeForKids,
           attachThumbnail: el.attachThumbnailCheck.checked,
           matchingThumbnail: video.matchingThumbnail,
+          attachSubtitle: el.attachSubtitleCheck ? el.attachSubtitleCheck.checked : true,
+          matchingSubtitle: video.matchingSubtitle,
+          language: 'ar',
           moveToPublished: el.moveToPublishedCheck.checked,
           sourceFolderId,
           publishedFolderId: state.health.defaults.PUBLISHED_FOLDER_ID,
@@ -801,6 +980,12 @@
       renderVideos();
 
       addLog(`✅ تم نشر "${meta.title}" بنجاح: ${completeRes.youtubeUrl}`, 'success');
+      if (completeRes.thumbnailUploaded) {
+        addLog('🖼️ تم رفع الصورة المصغرة تلقائياً بنجاح.', 'success');
+      }
+      if (completeRes.subtitleUploaded) {
+        addLog('💬 تم رفع ملف الترجمة العربية (.srt) تلقائياً بنجاح (تحسين البحث والاحتفاظ).', 'success');
+      }
       if (completeRes.warnings && completeRes.warnings.length > 0) {
         addLog(`تنبيه: ${completeRes.warnings.join(' | ')}`, 'warn');
       }
@@ -990,6 +1175,35 @@
         return;
       }
 
+      const optBtn = e.target.closest('[data-optimize-algo]');
+      if (optBtn) {
+        const vid = state.videos.find((v) => v.id === optBtn.dataset.optimizeAlgo);
+        if (vid) autoOptimizeVideoMeta(vid);
+        return;
+      }
+
+      const primeBtn = e.target.closest('[data-prime-schedule]');
+      if (primeBtn) {
+        const vid = state.videos.find((v) => v.id === primeBtn.dataset.primeSchedule);
+        if (!vid) return;
+        const meta = getVideoMeta(vid);
+        meta.publishAt = computeNextPrimeTimeLocalInput();
+        meta.privacyStatus = 'private';
+        renderVideos();
+        showAlert('⏰ تم ضبط النشر المجدول تلقائياً على ذروة المشاهدة (9:00 مساءً) مع وقت كافٍ لمعالجة HD!', 'success');
+        return;
+      }
+
+      const pickTitleBtn = e.target.closest('[data-pick-title]');
+      if (pickTitleBtn) {
+        const vid = state.videos.find((v) => v.id === pickTitleBtn.dataset.pickTitle);
+        if (!vid) return;
+        const meta = getVideoMeta(vid);
+        meta.title = pickTitleBtn.dataset.titleVal || meta.title;
+        renderVideos();
+        return;
+      }
+
       const pubBtn = e.target.closest('[data-publish-one]');
       if (pubBtn && !state.isUploading) {
         const vidId = pubBtn.dataset.publishOne;
@@ -1046,10 +1260,14 @@
       el.chunkSizeSelect,
       el.moveToPublishedCheck,
       el.attachThumbnailCheck,
+      el.attachSubtitleCheck,
       el.logToSheetCheck
-    ].forEach((node) => {
+    ].filter(Boolean).forEach((node) => {
       node.addEventListener('change', () => {
         saveSettings();
+        if (node === el.attachThumbnailCheck || node === el.attachSubtitleCheck) {
+          renderVideos();
+        }
         if (node === el.intervalSelect && state.autoEnabled) {
           startAutoPublisher();
         }

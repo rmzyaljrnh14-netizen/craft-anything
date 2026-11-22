@@ -5,9 +5,38 @@ const { sendJson, parseQuery } = require('../../lib/http');
 const {
   resolveAccessToken,
   listDriveFolderContents,
-  listAllDriveVideos
+  listAllDriveVideos,
+  downloadDriveTextFile
 } = require('../../lib/google-api');
-const { cleanVideoTitle, findMatchingThumbnail } = require('../../lib/youtube-utils');
+const {
+  cleanVideoTitle,
+  stripEpisodePrefixForCtr,
+  inferBestCategoryId,
+  findMatchingThumbnail,
+  findMatchingSubtitle,
+  parseEpisodeMetadataText
+} = require('../../lib/youtube-utils');
+
+async function loadExtractedMetaByParent(accessToken, metadataFilesByParent) {
+  const out = {};
+  const entries = Object.entries(metadataFilesByParent || {});
+  await Promise.all(
+    entries.map(async ([pid, files]) => {
+      if (!Array.isArray(files) || files.length === 0) return;
+      try {
+        const metaFile = files[0];
+        const raw = await downloadDriveTextFile(accessToken, metaFile.id);
+        const parsed = parseEpisodeMetadataText(raw);
+        if (parsed) {
+          out[pid] = { ...parsed, sourceFileName: metaFile.name };
+        }
+      } catch {
+        // Non-fatal: continue without auto-extracted text
+      }
+    })
+  );
+  return out;
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -24,12 +53,23 @@ module.exports = async function handler(req, res) {
     const folderId = String(query.folderId || 'all').trim() || 'all';
 
     if (folderId === 'all') {
-      const { videos, folderNamesById, thumbnailsByParent } = await listAllDriveVideos(
+      const {
+        videos,
+        folderNamesById,
+        thumbnailsByParent,
+        subtitlesByParent,
+        metadataFilesByParent
+      } = await listAllDriveVideos(auth.accessToken, [
+        DEFAULTS.PUBLISHED_FOLDER_ID,
+        DEFAULTS.FAILED_FOLDER_ID
+      ]);
+
+      const extractedMetaByParent = await loadExtractedMetaByParent(
         auth.accessToken,
-        [DEFAULTS.PUBLISHED_FOLDER_ID, DEFAULTS.FAILED_FOLDER_ID]
+        metadataFilesByParent
       );
 
-      // Count videos per parent folder so single-video episode folders auto-match their thumbnail
+      // Count videos per parent folder so single-video episode folders auto-match their thumbnail & subtitle
       const countByParent = {};
       for (const v of videos) {
         const pid = (v.parents && v.parents[0]) || '';
@@ -38,12 +78,21 @@ module.exports = async function handler(req, res) {
 
       const enrichedVideos = videos.map((v) => {
         const pid = (v.parents && v.parents[0]) || '';
+        const isSingle = countByParent[pid] === 1;
         const folderThumbs = (pid && thumbnailsByParent[pid]) || [];
+        const folderSubs = (pid && subtitlesByParent[pid]) || [];
         const thumb = findMatchingThumbnail(v.name, folderThumbs, {
           allowFolderFallback: true,
-          singleVideoInFolder: countByParent[pid] === 1
+          singleVideoInFolder: isSingle
         });
+        const sub = findMatchingSubtitle(v.name, folderSubs, {
+          allowFolderFallback: true,
+          singleVideoInFolder: isSingle
+        });
+        const extractedMeta = pid && isSingle ? extractedMetaByParent[pid] || null : null;
         const sizeBytes = Number(v.size || 0);
+        const cleanTitle = stripEpisodePrefixForCtr(cleanVideoTitle(v.name));
+
         return {
           id: v.id,
           name: v.name,
@@ -54,13 +103,23 @@ module.exports = async function handler(req, res) {
           webViewLink: v.webViewLink || `https://drive.google.com/file/d/${v.id}/view`,
           parents: v.parents || [],
           folderName: (pid && folderNamesById[pid]) || '',
-          suggestedTitle: cleanVideoTitle(v.name),
+          suggestedTitle: (extractedMeta && extractedMeta.title) || cleanTitle,
+          suggestedCategoryId:
+            (extractedMeta && extractedMeta.categoryId) || inferBestCategoryId(cleanTitle),
+          extractedMeta,
           matchingThumbnail: thumb
             ? {
                 id: thumb.id,
                 name: thumb.name,
                 mimeType: thumb.mimeType || 'image/jpeg',
                 size: Number(thumb.size || 0)
+              }
+            : null,
+          matchingSubtitle: sub
+            ? {
+                id: sub.id,
+                name: sub.name,
+                size: Number(sub.size || 0)
               }
             : null
         };
@@ -74,14 +133,28 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const { videos, thumbnails, folders } = await listDriveFolderContents(auth.accessToken, folderId);
+    const { videos, thumbnails, subtitles, metadataFiles, folders } = await listDriveFolderContents(
+      auth.accessToken,
+      folderId
+    );
+    const extractedMap = await loadExtractedMetaByParent(auth.accessToken, {
+      [folderId]: metadataFiles
+    });
+    const folderExtractedMeta = videos.length === 1 ? extractedMap[folderId] || null : null;
 
     const enrichedVideos = videos.map((v) => {
+      const isSingle = videos.length === 1;
       const thumb = findMatchingThumbnail(v.name, thumbnails, {
         allowFolderFallback: true,
-        singleVideoInFolder: videos.length === 1
+        singleVideoInFolder: isSingle
+      });
+      const sub = findMatchingSubtitle(v.name, subtitles, {
+        allowFolderFallback: true,
+        singleVideoInFolder: isSingle
       });
       const sizeBytes = Number(v.size || 0);
+      const cleanTitle = stripEpisodePrefixForCtr(cleanVideoTitle(v.name));
+
       return {
         id: v.id,
         name: v.name,
@@ -92,13 +165,23 @@ module.exports = async function handler(req, res) {
         webViewLink: v.webViewLink || `https://drive.google.com/file/d/${v.id}/view`,
         parents: v.parents || [],
         folderName: '',
-        suggestedTitle: cleanVideoTitle(v.name),
+        suggestedTitle: (folderExtractedMeta && folderExtractedMeta.title) || cleanTitle,
+        suggestedCategoryId:
+          (folderExtractedMeta && folderExtractedMeta.categoryId) || inferBestCategoryId(cleanTitle),
+        extractedMeta: folderExtractedMeta,
         matchingThumbnail: thumb
           ? {
               id: thumb.id,
               name: thumb.name,
               mimeType: thumb.mimeType || 'image/jpeg',
               size: Number(thumb.size || 0)
+            }
+          : null,
+        matchingSubtitle: sub
+          ? {
+              id: sub.id,
+              name: sub.name,
+              size: Number(sub.size || 0)
             }
           : null
       };

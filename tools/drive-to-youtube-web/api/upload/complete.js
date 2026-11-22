@@ -6,6 +6,7 @@ const {
   resolveAccessToken,
   moveDriveFile,
   uploadYouTubeThumbnailFromDrive,
+  uploadYouTubeCaptionFromDrive,
   appendPublishedRowToSheet
 } = require('../../lib/google-api');
 
@@ -49,6 +50,24 @@ module.exports = async function handler(req, res) {
         }
       } catch (thumbErr) {
         warnings.push(thumbErr.message);
+      }
+    }
+
+    // 1b. Optional Arabic subtitle (.srt) upload for YouTube SEO & retention boost
+    let subtitleUploaded = false;
+    if (body.attachSubtitle && body.matchingSubtitle && body.matchingSubtitle.id) {
+      try {
+        await uploadYouTubeCaptionFromDrive(
+          auth.accessToken,
+          videoId,
+          body.matchingSubtitle,
+          body.language || DEFAULTS.DEFAULT_LANGUAGE || 'ar'
+        );
+        subtitleUploaded = true;
+      } catch (subErr) {
+        warnings.push(
+          `تنبيه الترجمة (.srt): ${subErr.message} — (إذا ظهرت رسالة صلاحيات، اضغط تسجيل الخروج وأعد الدخول مرة واحدة لتفعيل رفع الترجمة تلقائياً)`
+        );
       }
     }
 
@@ -100,6 +119,7 @@ module.exports = async function handler(req, res) {
       videoId,
       youtubeUrl,
       studioUrl,
+      subtitleUploaded,
       warnings
     });
   } catch (err) {

@@ -4,7 +4,10 @@ const { OAUTH_SCOPES } = require('./defaults');
 const {
   isVideoFile,
   isThumbnailFile,
+  isSubtitleFile,
+  isMetadataTextFile,
   MAX_THUMBNAIL_BYTES,
+  MAX_SUBTITLE_BYTES,
   parseNextOffsetFromRangeHeader,
   resolveThumbnailMimeType
 } = require('./youtube-utils');
@@ -237,9 +240,26 @@ async function listDriveFolderContents(accessToken, folderId, fetchImpl = fetch)
   const all = (parsed && Array.isArray(parsed.files)) ? parsed.files : [];
   const videos = all.filter(isVideoFile);
   const thumbnails = all.filter(isThumbnailFile);
+  const subtitles = all.filter(isSubtitleFile);
+  const metadataFiles = all.filter(isMetadataTextFile);
   const folders = all.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
 
-  return { videos, thumbnails, folders };
+  return { videos, thumbnails, subtitles, metadataFiles, folders };
+}
+
+async function downloadDriveTextFile(accessToken, fileId, maxBytes = 65536, fetchImpl = fetch) {
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`;
+  const resp = await fetchImpl(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Range: `bytes=0-${maxBytes - 1}`
+    }
+  });
+  if (resp.status !== 206 && resp.status !== 200) {
+    return '';
+  }
+  const buf = Buffer.from(await resp.arrayBuffer());
+  return buf.toString('utf8');
 }
 
 async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl = fetch) {
@@ -266,7 +286,7 @@ async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl 
     return !parents.some((p) => excluded.has(p));
   });
 
-  // Collect unique parent folders for thumbnails + folder names (limit to first 10 parents for speed)
+  // Collect unique parent folders for thumbnails, subtitles, metadata & folder names (limit to first 10 parents for speed)
   const parentIds = [];
   const seenParents = new Set();
   for (const v of videos) {
@@ -280,6 +300,8 @@ async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl 
 
   const folderNamesById = {};
   const thumbnailsByParent = {};
+  const subtitlesByParent = {};
+  const metadataFilesByParent = {};
 
   await Promise.all(
     parentIds.map(async (pid) => {
@@ -290,13 +312,15 @@ async function listAllDriveVideos(accessToken, excludeParentIds = [], fetchImpl 
         ]);
         if (meta && meta.name) folderNamesById[pid] = meta.name;
         thumbnailsByParent[pid] = contents.thumbnails || [];
+        subtitlesByParent[pid] = contents.subtitles || [];
+        metadataFilesByParent[pid] = contents.metadataFiles || [];
       } catch {
         // Ignore individual parent lookup failures
       }
     })
   );
 
-  return { videos, folderNamesById, thumbnailsByParent };
+  return { videos, folderNamesById, thumbnailsByParent, subtitlesByParent, metadataFilesByParent };
 }
 
 async function getDriveFileMetadata(accessToken, fileId, fetchImpl = fetch) {
@@ -463,6 +487,50 @@ async function uploadYouTubeThumbnailFromDrive(accessToken, videoId, thumbFile, 
   }
 }
 
+async function uploadYouTubeCaptionFromDrive(accessToken, videoId, subtitleFile, language = 'ar', fetchImpl = fetch) {
+  const size = Number(subtitleFile.size || 0);
+  if (size <= 0 || size > MAX_SUBTITLE_BYTES) {
+    throw new Error('حجم ملف الترجمة يجب أن يكون أقل من 5MB.');
+  }
+  const bytes = await downloadDriveRange(accessToken, subtitleFile.id, 0, size - 1, fetchImpl);
+  const boundary = 'd2yt_caption_boundary_' + Date.now();
+  const metaJson = JSON.stringify({
+    snippet: {
+      videoId,
+      language: String(language || 'ar').trim() || 'ar',
+      name: 'العربية',
+      isDraft: false
+    }
+  });
+
+  const head = Buffer.from(
+    `--${boundary}\r\n` +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      `${metaJson}\r\n` +
+      `--${boundary}\r\n` +
+      'Content-Type: application/octet-stream\r\n\r\n',
+    'utf8'
+  );
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+  const multipartBody = Buffer.concat([head, bytes, tail]);
+
+  const url = 'https://www.googleapis.com/upload/youtube/v3/captions?part=snippet&uploadType=multipart';
+  const resp = await fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+      'Content-Length': String(multipartBody.length)
+    },
+    body: multipartBody
+  });
+
+  if (!resp.ok) {
+    const { parsed, text } = await parseJsonResponse(resp);
+    throw new Error(`تعذر رفع ملف الترجمة (${resp.status}): ${extractApiError(parsed, text)}`);
+  }
+}
+
 async function appendPublishedRowToSheet(accessToken, spreadsheetId, rowValues, fetchImpl = fetch) {
   if (!spreadsheetId) return;
   const range = encodeURIComponent('Queue!A:O');
@@ -492,6 +560,7 @@ module.exports = {
   fetchGoogleUserAndChannel,
   listDriveFolderContents,
   listAllDriveVideos,
+  downloadDriveTextFile,
   getDriveFileMetadata,
   downloadDriveRange,
   moveDriveFile,
@@ -499,5 +568,6 @@ module.exports = {
   assertValidYouTubeUploadUri,
   uploadChunkToYouTube,
   uploadYouTubeThumbnailFromDrive,
+  uploadYouTubeCaptionFromDrive,
   appendPublishedRowToSheet
 };

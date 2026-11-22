@@ -162,7 +162,7 @@ test('HTTP server serves RTL UI, health defaults, OAuth config, and OAuth redire
     assert.ok(setCookieHeader && setCookieHeader.includes('d2yt_session='));
     const cookiePair = setCookieHeader.split(';')[0];
 
-    // 4. OAuth redirect builds exact Google authorization URL with Drive + YouTube scopes
+    // 4. OAuth redirect builds exact Google authorization URL with Drive + YouTube + Captions scopes
     const authResp = await fetch(`${baseUrl}/api/auth/google`, {
       headers: { Cookie: cookiePair },
       redirect: 'manual'
@@ -171,6 +171,7 @@ test('HTTP server serves RTL UI, health defaults, OAuth config, and OAuth redire
     const location = authResp.headers.get('location');
     assert.ok(location.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'));
     assert.ok(location.includes('youtube.upload'));
+    assert.ok(location.includes('youtube.force-ssl'));
     assert.ok(location.includes('auth%2Fdrive'));
     assert.ok(location.includes('access_type=offline'));
 
@@ -186,3 +187,78 @@ test('HTTP server serves RTL UI, health defaults, OAuth config, and OAuth redire
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('YouTube algorithm helpers parse Arabic publishing pack, match .srt subtitles, clean CTR titles, and score 100/100', () => {
+  // 1. CTR title cleanup strips "01 — " prefix and trailing episode number
+  assert.equal(
+    ytUtils.stripEpisodePrefixForCtr('01 — ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟ — نقش 04.mp4'),
+    'ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟'
+  );
+
+  // 2. Parse Arabic episode publishing pack (same layout as "04 — ملف النشر والعناوين والوصف.txt")
+  const samplePack = `
+======================================================================
+حزمة نشر حلقة نقش 04
+======================================================================
+
+[العنوان الرئيسي المقترح]
+ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟
+
+[عناوين بديلة للاختبار]
+1. رسالة من سبع ثوانٍ استغرقت أسبوعاً لتصل
+2. الطائرة هبطت… فلماذا لم يصل الخبر؟ | سبعة أيام بلا إنترنت
+
+[الكلمات المفتاحية]
+انقطاع الإنترنت، اختفاء الإنترنت من العالم، سبعة أيام بلا إنترنت، ماذا لو انقطع الإنترنت، الحياة بدون إنترنت، وثائقي تخيلي عربي، قناة نقش
+
+[وصف الفيديو]
+السادسة وسبع دقائق صباحاً. فجأة تتوقف الشبكة العالمية بالكامل لمدة سبعة أيام متواصلة وتنكشف البنية الخفية للعالم الحديث.
+
+فصول الفيديو:
+00:00 السادسة وسبع دقائق
+01:40 اليوم الأول: صمت الشاشات
+04:15 اليوم الثالث: المستشفيات والدفع الإلكتروني
+13:09 ما الذي نحتفظ به؟
+
+#نقش #ماذا_لو #انقطاع_الإنترنت
+`;
+
+  const parsed = ytUtils.parseEpisodeMetadataText(samplePack);
+  assert.ok(parsed);
+  assert.equal(parsed.title, 'ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟');
+  assert.equal(parsed.alternativeTitles.length, 2);
+  assert.equal(parsed.alternativeTitles[0], 'رسالة من سبع ثوانٍ استغرقت أسبوعاً لتصل');
+  assert.ok(parsed.tags.includes('انقطاع الإنترنت'));
+  assert.ok(parsed.tags.includes('قناة نقش'));
+  assert.ok(parsed.description.includes('00:00 السادسة وسبع دقائق'));
+  assert.ok(parsed.description.includes('#نقش'));
+  assert.equal(parsed.categoryId, '28'); // Science & Tech inferred from "الإنترنت"
+
+  // 3. Matching .srt subtitle inside episode folder
+  const sub = ytUtils.findMatchingSubtitle(
+    '01 — ماذا لو اختفى الإنترنت من العالم لمدة 7 أيام؟ — نقش 04.mp4',
+    [{ id: 'sub_06', name: '06 — الترجمة العربية.srt', mimeType: 'application/x-subrip' }],
+    { allowFolderFallback: true, singleVideoInFolder: true }
+  );
+  assert.ok(sub);
+  assert.equal(sub.id, 'sub_06');
+
+  // 4. Algorithm score reaches 100/100 when all signals are present
+  const report = ytUtils.scoreYouTubeAlgorithm({
+    title: parsed.title,
+    description: parsed.description,
+    tags: parsed.tags,
+    hasThumbnail: true,
+    hasSubtitle: true,
+    categoryId: parsed.categoryId
+  });
+  assert.equal(report.score, 100);
+  assert.equal(report.grade, 'ممتاز للنشر 🚀');
+
+  // 5. buildYouTubeMetadata defaults to Education (27) and enables embeddable + publicStatsViewable
+  const built = ytUtils.buildYouTubeMetadata({ title: parsed.title }, 'ep.mp4');
+  assert.equal(built.snippet.categoryId, '27');
+  assert.equal(built.status.embeddable, true);
+  assert.equal(built.status.publicStatsViewable, true);
+});
+
